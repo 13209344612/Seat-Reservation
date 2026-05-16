@@ -8,6 +8,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
@@ -15,46 +17,43 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+/**
+ * JWT 认证过滤器
+ *
+ * 不标注 @Component，避免 Spring Boot 自动注册为 Servlet 过滤器导致执行两次。
+ * 只在 SecurityConfig 里手动 new 并手动注册一次。
+ */
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    private final JwtUtils jwtUtils;
-    private final UserMapper userMapper;
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+
+    private final JwtUtils jwtUtils;
+    private final UserMapper userMapper;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
-                                    FilterChain filterChain)throws ServletException, IOException {
+                                    FilterChain filterChain)
+            throws ServletException, IOException {
+
         String token = getTokenFromRequest(request);
-        log.info("请求路径: {}, 提取到的token: {}", request.getRequestURI(),
-                token != null ? token.substring(0, Math.min(20, token.length())) + "..." : "无");
 
         if (StringUtils.hasText(token) && jwtUtils.validateToken(token)) {
             Long userId = jwtUtils.getUserIdFromToken(token);
-            log.info("token有效, userId={}", userId);
-
             User user = userMapper.selectById(userId);
+
             if (user != null) {
-                log.info("查到用户: {}", user.getUsername());
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 user, null, Collections.emptyList());
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-                log.info("认证已设置到SecurityContext");
             } else {
                 log.warn("userId={} 在数据库查不到用户", userId);
             }
-        } else {
-            log.info("token无效或为空, hasText={}, validate={}",
-                    StringUtils.hasText(token),
-                    StringUtils.hasText(token) ? jwtUtils.validateToken(token) : "跳过");
         }
 
-        // 3. 放行（没 token 也放行，后续由 SecurityConfig 拦截未认证请求）
         filterChain.doFilter(request, response);
     }
 
