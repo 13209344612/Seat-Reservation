@@ -6,6 +6,7 @@ import com.campus.seatreservation.dto.RoomResponse;
 import com.campus.seatreservation.service.StudyRoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,17 +29,20 @@ public class StudyRoomController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<RoomResponse> create(@Valid @RequestBody RoomRequest request) {
         return Result.success(studyRoomService.createRoom(request));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<RoomResponse> update(@PathVariable Long id,
                                        @Valid @RequestBody RoomRequest request) {
         return Result.success(studyRoomService.updateRoom(id, request));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<Void> delete(@PathVariable Long id) {
         studyRoomService.deleteRoom(id);
         return Result.success("删除成功");

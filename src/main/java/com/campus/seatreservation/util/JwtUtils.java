@@ -30,12 +30,13 @@ public class JwtUtils {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(Long userId) {
+    public String generateToken(Long userId, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .claim("role", role)
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getKey())
@@ -49,6 +50,15 @@ public class JwtUtils {
                 .parseSignedClaims(token)
                 .getPayload();
         return Long.valueOf(claims.getSubject());
+    }
+
+    public String getRoleFromToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.get("role", String.class);
     }
 
     /**

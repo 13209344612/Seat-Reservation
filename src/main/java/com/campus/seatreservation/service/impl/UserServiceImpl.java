@@ -54,7 +54,7 @@ public class UserServiceImpl implements UserService {
             throw new RuntimeException("用户名或密码错误");
         }
 
-        String token = jwtUtils.generateToken(user.getId());
+        String token = jwtUtils.generateToken(user.getId(), user.getRole());
         return new LoginResponse(token, user.getId(), user.getUsername());
     }
 }

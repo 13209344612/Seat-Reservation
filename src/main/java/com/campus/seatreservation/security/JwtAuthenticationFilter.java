@@ -11,12 +11,14 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * JWT 认证过滤器
@@ -45,9 +47,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             User user = userMapper.selectById(userId);
 
             if (user != null) {
+                String role = jwtUtils.getRoleFromToken(token);
+                SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
-                                user, null, Collections.emptyList());
+                                user, null, List.of(authority));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } else {
                 log.warn("userId={} 在数据库查不到用户", userId);

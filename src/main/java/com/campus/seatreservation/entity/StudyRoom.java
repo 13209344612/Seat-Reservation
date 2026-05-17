@@ -17,7 +17,7 @@ public class StudyRoom {
 
     private Integer availableCapacity; // 当前可用容量
 
-    @Version
+   @Version
     private Integer version;          // 乐观锁版本号（第4天用）
 
     @TableField(fill = FieldFill.INSERT)
