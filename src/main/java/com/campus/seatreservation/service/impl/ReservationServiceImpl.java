@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -89,6 +90,58 @@ public class ReservationServiceImpl implements ReservationService {
         }
         return toReserveResponse(reservation,
                 userMapper.selectById(reservation.getUserId()),
+                studyRoomMapper.selectById(reservation.getRoomId()),
+                timeSlotMapper.selectById(reservation.getTimeSlotId()));
+    }@Override
+    @Transactional
+    public ReserveResponse sign(Long reservationId, Long userId) {
+        Reservation reservation = reservationMapper.selectById(reservationId);
+        if (reservation == null) {
+            throw new RuntimeException("预约不存在");
+        }
+        if (!reservation.getUserId().equals(userId)) {
+            throw new RuntimeException("只能签到自己的预约");
+        }
+        if (!"booked".equals(reservation.getStatus())) {
+            throw new RuntimeException("当前状态不可签到：" + reservation.getStatus());
+        }
+
+        reservation.setStatus("signed");
+        reservation.setSignTime(LocalDateTime.now());
+        reservationMapper.updateById(reservation);
+
+        return toReserveResponse(reservation,
+                userMapper.selectById(userId),
+                studyRoomMapper.selectById(reservation.getRoomId()),
+                timeSlotMapper.selectById(reservation.getTimeSlotId()));
+    }
+    @Override
+    @Transactional
+    public ReserveResponse cancel(Long reservationId, Long userId) {
+        Reservation reservation = reservationMapper.selectById(reservationId);
+        if (reservation == null) {
+            throw new RuntimeException("预约不存在");
+        }
+        if (!reservation.getUserId().equals(userId)) {
+            throw new RuntimeException("只能取消自己的预约");
+        }
+        if (!"booked".equals(reservation.getStatus())) {
+            throw new RuntimeException("当前状态不可取消：" + reservation.getStatus());
+        }
+
+        // 1. 更新预约状态
+        reservation.setStatus("cancelled");
+        reservationMapper.updateById(reservation);
+
+        // 2. 恢复库存（乐观锁）
+        LambdaUpdateWrapper<StudyRoom> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(StudyRoom::getId, reservation.getRoomId())
+                .setSql("available_capacity = available_capacity + 1");
+
+        studyRoomMapper.update(null, updateWrapper);
+
+        return toReserveResponse(reservation,
+                userMapper.selectById(userId),
                 studyRoomMapper.selectById(reservation.getRoomId()),
                 timeSlotMapper.selectById(reservation.getTimeSlotId()));
     }

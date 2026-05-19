@@ -34,4 +34,15 @@ public class ReservationController {
     public Result<ReserveResponse> getById(@PathVariable Long id) {
         return Result.success(reservationService.getReservationById(id));
     }
+    @PostMapping("/{id}/sign")
+    public Result<ReserveResponse> sign(@PathVariable Long id,
+                                        @AuthenticationPrincipal User user) {
+        return Result.success(reservationService.sign(id, user.getId()));
+    }
+
+    @PostMapping("/{id}/cancel")
+    public Result<ReserveResponse> cancel(@PathVariable Long id,
+                                          @AuthenticationPrincipal User user) {
+        return Result.success(reservationService.cancel(id, user.getId()));
+    }
 }
