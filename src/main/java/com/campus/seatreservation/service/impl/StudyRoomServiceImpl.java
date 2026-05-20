@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 public class StudyRoomServiceImpl implements StudyRoomService {
     private final StudyRoomMapper studyRoomMapper;
     private final TimeSlotMapper timeSlotMapper;
+
     @Override
     public List<RoomResponse> listRooms() {
         List<StudyRoom> rooms = studyRoomMapper.selectList(null);
@@ -28,6 +29,7 @@ public class StudyRoomServiceImpl implements StudyRoomService {
                 .map(this::toRoomResponse)
                 .collect(Collectors.toList());
     }
+
     @Override
     public RoomResponse getRoomById(Long id) {
         StudyRoom room = studyRoomMapper.selectById(id);
