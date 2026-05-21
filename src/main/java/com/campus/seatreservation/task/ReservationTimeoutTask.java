@@ -15,6 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 预约超时定时任务
+ * 每5分钟扫描一次数据库，自动取消超过30分钟未签到的预约，并恢复库存。
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -23,6 +27,11 @@ public class ReservationTimeoutTask {
     private final ReservationMapper reservationMapper;
     private final StudyRoomMapper studyRoomMapper;
 
+    /**
+     * 定时取消超时预约
+     * 每5分钟执行一次，查找状态为booked且创建时间超过30分钟的预约，
+     * 将其状态改为cancelled并恢复对应的自习室库存。
+     */
     @Scheduled(fixedRate = 300000) // 每5分钟执行一次
     @Transactional
     public void cancelTimeoutReservations() {

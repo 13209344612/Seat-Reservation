@@ -16,32 +16,45 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
+/**
+ * Spring Security 安全配置类
+ *
+ * 配置JWT认证过滤器、权限控制规则和密码编码器。
+ * 采用无状态会话管理，所有请求都需要通过JWT token进行认证。
+ */
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(prePostEnabled = true)
+@EnableMethodSecurity(prePostEnabled = true)  // 启用方法级权限控制
 @RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtUtils jwtUtils;
     private final UserMapper userMapper;
 
+    /**
+     * 配置安全过滤链
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        // 创建JWT认证过滤器实例（不标注@Component避免重复注册）
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtUtils, userMapper);
 
         http
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(AbstractHttpConfigurer::disable)  // 禁用CSRF（无状态API不需要）
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))  // 无状态会话
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .anyRequest().authenticated()
+                        .requestMatchers("/api/auth/**").permitAll()  // 认证接口放行
+                        .anyRequest().authenticated()  // 其他接口需要认证
                 )
-                .addFilterBefore(jwtFilter, AuthorizationFilter.class);
+                .addFilterBefore(jwtFilter, AuthorizationFilter.class);  // 在授权过滤器前添加JWT过滤器
 
         return http.build();
     }
 
+    /**
+     * 配置密码编码器
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();

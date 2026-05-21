@@ -21,6 +21,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 预约业务层实现
+ *
+ * 处理座位预约、签到、取消等核心业务逻辑。
+ * 使用乐观锁防止并发预约时的超卖问题。
+ */
 @Service
 @RequiredArgsConstructor
 public class ReservationServiceImpl implements ReservationService {
@@ -28,6 +34,10 @@ public class ReservationServiceImpl implements ReservationService {
     private final StudyRoomMapper studyRoomMapper;
     private final TimeSlotMapper timeSlotMapper;
     private final UserMapper userMapper;
+
+    /**
+     * 创建预约（事务操作 + 乐观锁）
+     */
     @Override
     @Transactional
     public ReserveResponse reserve(Long userId, ReserveRequest request) {
@@ -42,13 +52,13 @@ public class ReservationServiceImpl implements ReservationService {
             throw new RuntimeException("该时段不属于此自习室");
         }
 
-        // 2. 乐观锁扣减库存
+        // 2. 乐观锁扣减库存（原子操作）
         LambdaUpdateWrapper<StudyRoom> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(StudyRoom::getId, request.getRoomId())
-                .gt(StudyRoom::getAvailableCapacity, 0)
-                .eq(StudyRoom::getVersion, room.getVersion())
-                .setSql("available_capacity = available_capacity - 1")
-                .setSql("version = version + 1");
+                .gt(StudyRoom::getAvailableCapacity, 0)  // 确保还有余量
+                .eq(StudyRoom::getVersion, room.getVersion())  // 版本号匹配
+                .setSql("available_capacity = available_capacity - 1")  // 原子扣减
+                .setSql("version = version + 1");  // 版本号递增
 
         int affected = studyRoomMapper.update(null, updateWrapper);
         if (affected == 0) {
@@ -68,6 +78,9 @@ public class ReservationServiceImpl implements ReservationService {
         User user = userMapper.selectById(userId);
         return toReserveResponse(reservation, user, room, slot);
     }
+    /**
+     * 获取我的预约列表
+     */
     @Override
     public List<ReserveResponse> listMyReservations(Long userId) {
         LambdaQueryWrapper<Reservation> wrapper = new LambdaQueryWrapper<>();
@@ -82,6 +95,10 @@ public class ReservationServiceImpl implements ReservationService {
                         timeSlotMapper.selectById(r.getTimeSlotId())))
                 .collect(Collectors.toList());
     }
+
+    /**
+     * 根据ID获取预约详情
+     */
     @Override
     public ReserveResponse getReservationById(Long reservationId) {
         Reservation reservation = reservationMapper.selectById(reservationId);
@@ -92,7 +109,12 @@ public class ReservationServiceImpl implements ReservationService {
                 userMapper.selectById(reservation.getUserId()),
                 studyRoomMapper.selectById(reservation.getRoomId()),
                 timeSlotMapper.selectById(reservation.getTimeSlotId()));
-    }@Override
+    }
+
+    /**
+     * 签到（事务操作）
+     */
+    @Override
     @Transactional
     public ReserveResponse sign(Long reservationId, Long userId) {
         Reservation reservation = reservationMapper.selectById(reservationId);
@@ -106,6 +128,7 @@ public class ReservationServiceImpl implements ReservationService {
             throw new RuntimeException("当前状态不可签到：" + reservation.getStatus());
         }
 
+        // 更新状态为已签到，记录签到时间
         reservation.setStatus("signed");
         reservation.setSignTime(LocalDateTime.now());
         reservationMapper.updateById(reservation);
@@ -115,6 +138,10 @@ public class ReservationServiceImpl implements ReservationService {
                 studyRoomMapper.selectById(reservation.getRoomId()),
                 timeSlotMapper.selectById(reservation.getTimeSlotId()));
     }
+
+    /**
+     * 取消预约（事务操作 + 恢复库存）
+     */
     @Override
     @Transactional
     public ReserveResponse cancel(Long reservationId, Long userId) {
@@ -129,11 +156,11 @@ public class ReservationServiceImpl implements ReservationService {
             throw new RuntimeException("当前状态不可取消：" + reservation.getStatus());
         }
 
-        // 1. 更新预约状态
+        // 1. 更新预约状态为已取消
         reservation.setStatus("cancelled");
         reservationMapper.updateById(reservation);
 
-        // 2. 恢复库存（乐观锁）
+        // 2. 恢复库存（原子操作）
         LambdaUpdateWrapper<StudyRoom> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(StudyRoom::getId, reservation.getRoomId())
                 .setSql("available_capacity = available_capacity + 1");
@@ -145,6 +172,10 @@ public class ReservationServiceImpl implements ReservationService {
                 studyRoomMapper.selectById(reservation.getRoomId()),
                 timeSlotMapper.selectById(reservation.getTimeSlotId()));
     }
+
+    /**
+     * 将预约实体转换为响应DTO
+     */
     private ReserveResponse toReserveResponse(Reservation r, User u, StudyRoom room, TimeSlot slot) {
         return new ReserveResponse(
                 r.getId(),

@@ -13,36 +13,44 @@ import java.util.Date;
 
 /**
  * JWT 工具类 — 负责 token 的生成、解析、校验
- *
  * 注意：载荷是 Base64 编码，不是加密，不能放密码等敏感信息。
  */
 @Component
 public class JwtUtils {
 
     @Value("${jwt.secret}")
-    private String secret;
+    private String secret;  // JWT签名密钥（Base64编码）
 
     @Value("${jwt.expiration}")
-    private long expiration;
+    private long expiration;  // Token有效期（毫秒）
 
+    /**
+     * 获取签名密钥
+     */
     private SecretKey getKey() {
         byte[] keyBytes = Base64.getDecoder().decode(secret);
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
+    /**
+     * 生成JWT Token
+     */
     public String generateToken(Long userId, String role) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
 
         return Jwts.builder()
-                .subject(String.valueOf(userId))
-                .claim("role", role)
-                .issuedAt(now)
-                .expiration(expiryDate)
-                .signWith(getKey())
+                .subject(String.valueOf(userId))  // 主题：用户ID
+                .claim("role", role)  // 自定义声明：角色
+                .issuedAt(now)  // 签发时间
+                .expiration(expiryDate)  // 过期时间
+                .signWith(getKey())  // 签名
                 .compact();
     }
 
+    /**
+     * 从Token中获取用户ID
+     */
     public Long getUserIdFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(getKey())
@@ -52,6 +60,9 @@ public class JwtUtils {
         return Long.valueOf(claims.getSubject());
     }
 
+    /**
+     * 从Token中获取用户角色
+     */
     public String getRoleFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(getKey())
@@ -63,8 +74,6 @@ public class JwtUtils {
 
     /**
      * 校验 token 是否有效
-     *
-     * 所有异常统一返回 false，不暴露具体原因。
      */
     public boolean validateToken(String token) {
         try {

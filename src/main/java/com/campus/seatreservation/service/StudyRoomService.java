@@ -2,10 +2,11 @@ package com.campus.seatreservation.service;
 
 import com.campus.seatreservation.dto.RoomRequest;
 import com.campus.seatreservation.dto.RoomResponse;
-import com.campus.seatreservation.entity.StudyRoom;
-
 import java.util.List;
 
+/**
+ * 自习室业务层接口
+ */
 public interface StudyRoomService {
     List<RoomResponse> listRooms();
     RoomResponse getRoomById(Long id);

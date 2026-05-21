@@ -17,7 +17,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -25,6 +24,8 @@ import java.util.List;
  *
  * 不标注 @Component，避免 Spring Boot 自动注册为 Servlet 过滤器导致执行两次。
  * 只在 SecurityConfig 里手动 new 并手动注册一次。
+ *
+ * 该过滤器在每次请求时提取JWT token，验证有效性，并将用户信息存入SecurityContext。
  */
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -34,6 +35,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final UserMapper userMapper;
 
+    /**
+     * 过滤请求，进行JWT认证
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -43,10 +47,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = getTokenFromRequest(request);
 
         if (StringUtils.hasText(token) && jwtUtils.validateToken(token)) {
+            // Token有效，解析用户信息
             Long userId = jwtUtils.getUserIdFromToken(token);
             User user = userMapper.selectById(userId);
 
             if (user != null) {
+                // 构建认证对象，设置角色权限
                 String role = jwtUtils.getRoleFromToken(token);
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role.toUpperCase());
                 UsernamePasswordAuthenticationToken authentication =
@@ -58,9 +64,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
 
+        // 继续执行过滤器链
         filterChain.doFilter(request, response);
     }
 
+    /**
+     * 从请求头中提取JWT token
+     */
     private String getTokenFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
