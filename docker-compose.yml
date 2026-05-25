@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库服务
+  mysql:
+    image: mysql:8.0
+    container_name: seat-reservation-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: 622824
+      MYSQL_DATABASE: seat_reservation
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    networks:
+      - seat-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Redis 缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: seat-reservation-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - seat-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ 消息队列服务
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: seat-reservation-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: /
+    ports:
+      - "5672:5672"   # AMQP 端口
+      - "15672:15672" # 管理界面端口
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - seat-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      timeout: 10s
+      retries: 5
+
+  # Spring Boot 应用服务
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: seat-reservation-app
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      # 数据库配置
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/seat_reservation?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf-8
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: 622824
+      # Redis 配置
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      # RabbitMQ 配置
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      # 时区设置
+      TZ: Asia/Shanghai
+    networks:
+      - seat-network
+    volumes:
+      - app_logs:/app/logs
+
+# 数据卷定义
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  app_logs:
+    driver: local
+
+# 网络定义
+networks:
+  seat-network:
+    driver: bridge

@@ -25,6 +25,9 @@ public class User {
     /** 用户角色：student（学生）或 admin（管理员） */
     private String role;
 
+    /** 手机号 */
+    private String phone;
+
     /** 创建时间，插入时自动填充 */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
