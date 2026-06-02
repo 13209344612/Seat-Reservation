@@ -1,5 +1,5 @@
-# 使用 OpenJDK 17 作为基础镜像
-FROM openjdk:17-jdk-slim
+# 使用 Eclipse Temurin (AdoptOpenJDK) 17 作为基础镜像
+FROM eclipse-temurin:17-jre-alpine
 
 # 设置维护者信息
 LABEL maintainer="SeatReservation Team"
@@ -14,7 +14,7 @@ COPY target/*.jar app.jar
 EXPOSE 8080
 
 # JVM 参数优化（可根据实际情况调整）
-ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Dspring.profiles.active=docker"
 
 # 启动应用
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

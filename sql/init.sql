@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     `username` VARCHAR(32) NOT NULL UNIQUE COMMENT '用户名',
     `password` VARCHAR(128) NOT NULL COMMENT '密码（BCrypt加密）',
     `role` VARCHAR(16) NOT NULL DEFAULT 'student' COMMENT '角色：student/admin',
+    `phone` VARCHAR(16) DEFAULT '' COMMENT '手机号',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_username (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
