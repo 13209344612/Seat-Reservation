@@ -18,7 +18,6 @@
 - [核心技术亮点](#核心技术亮点)
 - [项目结构](#项目结构)
 - [数据库设计](#数据库设计)
-- [常见问题](#常见问题)
 
 ---
 
@@ -309,7 +308,7 @@ curl -X POST http://localhost:8080/api/auth/login \
 
 ### 测试工具推荐
 
-本项目使用 **Postman** 或 **Apifox** 进行接口测试。
+本项目使用 **Postman** 进行接口测试。
 
 > 💡 **提示**：除注册/登录接口外，所有接口都需要在请求头中携带 JWT Token。
 >
@@ -317,7 +316,7 @@ curl -X POST http://localhost:8080/api/auth/login \
 > Authorization: Bearer <your_token_here>
 > ```
 
-### Postman / Apifox 测试指南
+### Postman 测试指南
 
 所有接口（除注册/登录外）需在 Header 带 `Authorization: Bearer <token>`。
 
@@ -485,113 +484,7 @@ erDiagram
 
 ---
 
-## 常见问题
 
-### Q1: 如何保证高并发下不超卖？
-
-**A**: 采用双层防护机制：
-
-1. **第一层：Redisson 分布式锁**
-   - 在应用层加锁，防止多实例并发
-   - 锁的 key：`reservation:lock:{roomId}:{date}:{timeSlotId}`
-   - 超时自动释放（看门狗机制）
-
-2. **第二层：MyBatis-Plus 乐观锁**
-   - 数据库层面原子更新：`UPDATE study_room SET available_capacity = available_capacity - 1 WHERE id = ? AND available_capacity > 0 AND version = ?`
-   - 版本号校验，防止脏写
-
-**性能数据**：100个用户同时预约50个座位，成功率100%，无超卖。
-
-### Q2: RabbitMQ 消息丢失怎么办？
-
-**A**: 采用手动 ACK 机制 + 持久化：
-
-1. **生产者确认**：消息发送到队列后返回确认
-2. **消费者手动 ACK**：业务处理成功后才确认消费
-3. **失败重试**：异常时 basicNack 重新入队
-4. **队列持久化**：服务器重启消息不丢失
-
-```
-@RabbitListener(queues = RabbitMQConfig.SMS_QUEUE)
-public void sendSms(SmsMessage msg, Channel channel, @Header(AmqpHeaders.DELIVERY_TAG) long tag) {
-    try {
-        // 业务逻辑
-        channel.basicAck(tag, false); // 成功确认
-    } catch (Exception e) {
-        channel.basicNack(tag, false, true); // 失败重新入队
-    }
-}
-```
-
-### Q3: Redis 缓存如何保证一致性？
-
-**A**: 采用 Cache Aside Pattern（旁路缓存模式）：
-
-1. **读操作**：先读缓存，未命中再读数据库并写入缓存
-2. **写操作**：先更新数据库，再删除缓存（而非更新缓存）
-3. **延时双删**：删除缓存后延迟 500ms 再删一次（可选）
-
-当前项目使用 Spring Cache 注解：
-```
-@Cacheable(value = "rooms")  // 读缓存
-@CacheEvict(value = "rooms", allEntries = true)  // 写操作清除缓存
-```
-
-### Q4: JWT Token 如何防止篡改？
-
-**A**: 使用 HMAC-SHA256 签名算法：
-
-1. **签发时**：用密钥对 Header + Payload 进行签名
-2. **验证时**：重新计算签名并与 Token 中的签名对比
-3. **密钥安全**：密钥存储在环境变量，不硬编码
-
-```
-// 签发
-Jwts.builder()
-    .subject(userId.toString())
-    .claim("role", user.getRole())
-    .signWith(secretKey, SignatureAlgorithm.HS256)
-    .compact();
-
-// 验证
-Jwts.parser()
-    .verifyWith(secretKey)
-    .build()
-    .parseSignedClaims(token);
-```
-
-### Q5: 定时任务如何实现分布式锁？
-
-**A**: 当前项目使用单机定时任务，多实例部署时需改造：
-
-**方案一：Redis 分布式锁**
-```
-@Scheduled(fixedRate = 5 * 60 * 1000)
-public void cancelTimeoutReservations() {
-    String lockKey = "scheduled:lock:timeout-cancel";
-    Boolean locked = redisTemplate.opsForValue()
-        .setIfAbsent(lockKey, "1", 10, TimeUnit.SECONDS);
-    
-    if (Boolean.TRUE.equals(locked)) {
-        try {
-            // 执行业务逻辑
-        } finally {
-            redisTemplate.delete(lockKey);
-        }
-    }
-}
-```
-
-**方案二：@SchedulerLock（推荐）**
-```
-@Scheduled(fixedRate = 5 * 60 * 1000)
-@SchedulerLock(name = "timeoutCancelTask", lockAtMostFor = "10m")
-public void cancelTimeoutReservations() {
-    // 业务逻辑
-}
-```
-
----
 
 ## 📝 License
 
