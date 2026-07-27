@@ -36,16 +36,13 @@ public class RedisConfig implements CachingConfigurer {
     @Bean
     @Override
     public CacheManager cacheManager() {
-        // 创建ObjectMapper并注册JavaTimeModule以支持LocalDateTime序列化
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
-        // 启用默认类型信息，确保反序列化时能正确还原对象类型（而非LinkedHashMap）
         mapper.activateDefaultTyping(
                 mapper.getPolymorphicTypeValidator(),
                 ObjectMapper.DefaultTyping.NON_FINAL
         );
 
-        // 配置Redis缓存策略：5分钟TTL + JSON序列化
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(5))
                 .serializeValuesWith(
@@ -55,10 +52,5 @@ public class RedisConfig implements CachingConfigurer {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(config)
                 .build();
-    }
-
-    @Override
-    public CacheResolver cacheResolver() {
-        return CachingConfigurer.super.cacheResolver();
     }
 }
