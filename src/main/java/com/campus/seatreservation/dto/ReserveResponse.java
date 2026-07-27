@@ -2,6 +2,7 @@ package com.campus.seatreservation.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -12,6 +13,7 @@ import java.time.LocalTime;
  * 包含预约记录的所有相关信息，用于展示用户的预约详情。
  */
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 public class ReserveResponse {
     /** 预约ID */

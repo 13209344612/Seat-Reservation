@@ -1,14 +1,18 @@
 package com.campus.seatreservation.config;
 
+import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
+import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.time.LocalDateTime;
 
 /**
  * MyBatis-Plus 配置类
  *
- * 配置MyBatis-Plus插件，启用乐观锁功能防止并发超卖。
+ * 配置乐观锁插件和字段自动填充。
  */
 @Configuration
 public class MybatisPlusConfig {
@@ -19,8 +23,25 @@ public class MybatisPlusConfig {
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor() {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
-        // 添加乐观锁拦截器，配合@Version注解使用
         interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
         return interceptor;
+    }
+
+    /**
+     * 字段自动填充处理器 — 自动设置 createTime 和 updateTime
+     */
+    @Bean
+    public MetaObjectHandler metaObjectHandler() {
+        return new MetaObjectHandler() {
+            @Override
+            public void insertFill(MetaObject metaObject) {
+                this.strictInsertFill(metaObject, "createTime", LocalDateTime.class, LocalDateTime.now());
+            }
+
+            @Override
+            public void updateFill(MetaObject metaObject) {
+                this.strictUpdateFill(metaObject, "updateTime", LocalDateTime.class, LocalDateTime.now());
+            }
+        };
     }
 }

@@ -21,25 +21,32 @@
         </div>
 
         <el-row :gutter="20" style="margin-top: 30px;">
-          <el-col :span="8">
-            <el-card shadow="hover">
+          <el-col :span="userStore.userInfo?.role === 'admin' ? 6 : 8">
+            <el-card shadow="hover" @click="$router.push('/rooms')">
               <el-icon size="40" color="#409eff"><Reading /></el-icon>
               <h3>自习室浏览</h3>
               <p>查看可用自习室</p>
             </el-card>
           </el-col>
-          <el-col :span="8">
-            <el-card shadow="hover">
+          <el-col :span="userStore.userInfo?.role === 'admin' ? 6 : 8">
+            <el-card shadow="hover" @click="$router.push('/rooms')">
               <el-icon size="40" color="#67c23a"><Calendar /></el-icon>
               <h3>在线预约</h3>
               <p>随时随地预约座位</p>
             </el-card>
           </el-col>
-          <el-col :span="8">
-            <el-card shadow="hover">
+          <el-col :span="userStore.userInfo?.role === 'admin' ? 6 : 8">
+            <el-card shadow="hover" @click="$router.push('/reservations')">
               <el-icon size="40" color="#e6a23c"><Tickets /></el-icon>
               <h3>预约管理</h3>
               <p>查看和管理我的预约</p>
+            </el-card>
+          </el-col>
+          <el-col :span="6" v-if="userStore.userInfo?.role === 'admin'">
+            <el-card shadow="hover" @click="$router.push('/admin/rooms')">
+              <el-icon size="40" color="#f56c6c"><Setting /></el-icon>
+              <h3>自习室管理</h3>
+              <p>增删改自习室</p>
             </el-card>
           </el-col>
         </el-row>

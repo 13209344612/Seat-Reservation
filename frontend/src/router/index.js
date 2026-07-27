@@ -37,6 +37,12 @@ const routes = [
     name: 'Reservations',
     component: () => import('@/views/Reservations.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/rooms',
+    name: 'AdminRooms',
+    component: () => import('@/views/AdminRooms.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

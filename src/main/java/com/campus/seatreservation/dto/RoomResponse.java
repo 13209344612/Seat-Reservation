@@ -2,6 +2,7 @@ package com.campus.seatreservation.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.List;
  * 包含自习室的基本信息、容量信息和时段列表。
  */
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 public class RoomResponse {
     /** 自习室ID */
@@ -31,6 +33,7 @@ public class RoomResponse {
      * 时段项内部类
      */
     @Data
+    @NoArgsConstructor
     @AllArgsConstructor
     public static class TimeSlotItem {
         /** 时段ID */

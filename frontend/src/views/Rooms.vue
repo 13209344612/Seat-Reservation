@@ -8,6 +8,7 @@
             <span>{{ userStore.userInfo?.username }}</span>
             <el-button @click="$router.push('/')">首页</el-button>
             <el-button @click="$router.push('/reservations')">我的预约</el-button>
+            <el-button v-if="userStore.userInfo?.role === 'admin'" @click="$router.push('/admin/rooms')">自习室管理</el-button>
             <el-button type="danger" @click="handleLogout">退出</el-button>
           </div>
         </div>
@@ -17,15 +18,19 @@
         <div class="search-bar">
           <el-input
             v-model="searchKeyword"
-            placeholder="搜索自习室名称或位置"
-            prefix-icon="Search"
+            placeholder="搜索自习室名称"
             clearable
             style="width: 400px"
             @clear="loadRooms"
             @keyup.enter="loadRooms"
           >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
             <template #append>
-              <el-button icon="Search" @click="loadRooms">搜索</el-button>
+              <el-button @click="loadRooms">
+                <el-icon><Search /></el-icon>
+              </el-button>
             </template>
           </el-input>
         </div>
@@ -40,16 +45,11 @@
               <div class="room-image">
                 <el-icon size="60" color="#409eff"><Reading /></el-icon>
               </div>
-              <h3>{{ room.roomName }}</h3>
-              <p class="location">
-                <el-icon><Location /></el-icon>
-                {{ room.location }}
-              </p>
+              <h3>{{ room.name }}</h3>
               <div class="room-info">
                 <el-tag type="success">容量: {{ room.totalCapacity }}</el-tag>
                 <el-tag type="warning">剩余: {{ room.availableCapacity }}</el-tag>
               </div>
-              <p class="time">{{ room.openTime }} - {{ room.closeTime }}</p>
               <el-button 
                 type="primary" 
                 style="width: 100%; margin-top: 10px"

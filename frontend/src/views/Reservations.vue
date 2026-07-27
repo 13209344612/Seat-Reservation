@@ -7,6 +7,7 @@
           <div class="user-info">
             <el-button @click="$router.push('/')">首页</el-button>
             <el-button @click="$router.push('/rooms')">自习室</el-button>
+            <el-button v-if="userStore.userInfo?.role === 'admin'" @click="$router.push('/admin/rooms')">自习室管理</el-button>
             <el-button type="danger" @click="handleLogout">退出</el-button>
           </div>
         </div>
@@ -16,9 +17,9 @@
         <div class="filter-bar">
           <el-radio-group v-model="filterStatus" @change="loadReservations">
             <el-radio-button label="">全部</el-radio-button>
-            <el-radio-button label="PENDING">待使用</el-radio-button>
-            <el-radio-button label="SIGNED">已签到</el-radio-button>
-            <el-radio-button label="CANCELLED">已取消</el-radio-button>
+            <el-radio-button label="booked">待使用</el-radio-button>
+            <el-radio-button label="signed">已签到</el-radio-button>
+            <el-radio-button label="cancelled">已取消</el-radio-button>
           </el-radio-group>
         </div>
 
@@ -30,9 +31,9 @@
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="roomName" label="自习室" min-width="150" />
           <el-table-column prop="reservationDate" label="预约日期" width="120" />
-          <el-table-column label="时间段" width="150">
+          <el-table-column label="时间段" width="130">
             <template #default="{ row }">
-              {{ row.startTime }} - {{ row.endTime }}
+              {{ row.startTime?.substring(0, 5) }} - {{ row.endTime?.substring(0, 5) }}
             </template>
           </el-table-column>
           <el-table-column label="状态" width="100">
@@ -46,7 +47,7 @@
           <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
               <el-button 
-                v-if="row.status === 'PENDING'"
+                v-if="row.status === 'booked'"
                 type="success" 
                 size="small"
                 @click="handleSign(row.id)"
@@ -54,7 +55,7 @@
                 签到
               </el-button>
               <el-button 
-                v-if="row.status === 'PENDING'"
+                v-if="row.status === 'booked'"
                 type="danger" 
                 size="small"
                 @click="handleCancel(row.id)"
@@ -93,7 +94,7 @@
         <el-descriptions-item label="自习室">{{ currentReservation.roomName }}</el-descriptions-item>
         <el-descriptions-item label="预约日期">{{ currentReservation.reservationDate }}</el-descriptions-item>
         <el-descriptions-item label="时间段">
-          {{ currentReservation.startTime }} - {{ currentReservation.endTime }}
+          {{ currentReservation.startTime?.substring(0, 5) }} - {{ currentReservation.endTime?.substring(0, 5) }}
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentReservation.status)">
@@ -134,8 +135,8 @@ const loadReservations = async () => {
       pageNum: currentPage.value,
       pageSize: pageSize.value
     })
-    reservationList.value = res.data?.records || []
-    total.value = res.data?.total || 0
+    reservationList.value = res.data || []
+    total.value = (res.data || []).length
   } catch (error) {
     console.error(error)
   } finally {
@@ -189,20 +190,20 @@ const viewDetail = async (id) => {
 
 const getStatusType = (status) => {
   const types = {
-    'PENDING': 'warning',
-    'SIGNED': 'success',
-    'CANCELLED': 'info',
-    'EXPIRED': 'danger'
+    'booked': 'warning',
+    'signed': 'success',
+    'cancelled': 'info',
+    'expired': 'danger'
   }
   return types[status] || ''
 }
 
 const getStatusText = (status) => {
   const texts = {
-    'PENDING': '待使用',
-    'SIGNED': '已签到',
-    'CANCELLED': '已取消',
-    'EXPIRED': '已过期'
+    'booked': '待使用',
+    'signed': '已签到',
+    'cancelled': '已取消',
+    'expired': '已过期'
   }
   return texts[status] || status
 }

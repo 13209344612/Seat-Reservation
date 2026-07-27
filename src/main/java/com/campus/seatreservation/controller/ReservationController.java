@@ -7,6 +7,7 @@ import com.campus.seatreservation.entity.User;
 import com.campus.seatreservation.service.ReservationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +29,7 @@ public class ReservationController {
      * 创建预约
      */
     @PostMapping
+    @CacheEvict(value = "rooms", allEntries = true)
     public Result<ReserveResponse> reserve(@AuthenticationPrincipal User user,
                                            @Valid @RequestBody ReserveRequest request) {
         return Result.success(reservationService.reserve(user.getId(), request));
@@ -62,6 +64,7 @@ public class ReservationController {
      * 取消预约
      */
     @PostMapping("/{id}/cancel")
+    @CacheEvict(value = "rooms", allEntries = true)
     public Result<ReserveResponse> cancel(@PathVariable Long id,
                                           @AuthenticationPrincipal User user) {
         return Result.success(reservationService.cancel(id, user.getId()));

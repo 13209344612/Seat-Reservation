@@ -7,6 +7,7 @@
           <div class="user-info">
             <el-button @click="$router.back()">返回</el-button>
             <el-button @click="$router.push('/')">首页</el-button>
+            <el-button v-if="userStore.userInfo?.role === 'admin'" @click="$router.push('/admin/rooms')">自习室管理</el-button>
             <el-button type="danger" @click="handleLogout">退出</el-button>
           </div>
         </div>
@@ -18,22 +19,15 @@
             <el-card>
               <div class="room-header">
                 <el-icon size="80" color="#409eff"><Reading /></el-icon>
-                <h2>{{ roomDetail.roomName }}</h2>
+                <h2>{{ roomDetail.name }}</h2>
               </div>
               
               <el-descriptions :column="1" border style="margin-top: 20px;">
-                <el-descriptions-item label="位置">
-                  <el-icon><Location /></el-icon>
-                  {{ roomDetail.location }}
-                </el-descriptions-item>
                 <el-descriptions-item label="总容量">
                   {{ roomDetail.totalCapacity }} 人
                 </el-descriptions-item>
                 <el-descriptions-item label="可用容量">
                   <el-tag type="success">{{ roomDetail.availableCapacity }} 人</el-tag>
-                </el-descriptions-item>
-                <el-descriptions-item label="开放时间">
-                  {{ roomDetail.openTime }} - {{ roomDetail.closeTime }}
                 </el-descriptions-item>
               </el-descriptions>
             </el-card>
@@ -62,7 +56,7 @@
                     <el-option
                       v-for="slot in timeSlots"
                       :key="slot.id"
-                      :label="`${slot.startTime} - ${slot.endTime}`"
+                      :label="`${slot.startTime.substring(0, 5)} - ${slot.endTime.substring(0, 5)}`"
                       :value="slot.id"
                     />
                   </el-select>
@@ -123,15 +117,7 @@ const loadRoomDetail = async () => {
   try {
     const res = await getRoomDetail(route.params.id)
     roomDetail.value = res.data
-    
-    // 模拟时间段数据（实际应该从后端获取）
-    timeSlots.value = [
-      { id: 1, startTime: '08:00', endTime: '10:00' },
-      { id: 2, startTime: '10:00', endTime: '12:00' },
-      { id: 3, startTime: '14:00', endTime: '16:00' },
-      { id: 4, startTime: '16:00', endTime: '18:00' },
-      { id: 5, startTime: '19:00', endTime: '21:00' }
-    ]
+    timeSlots.value = res.data.timeSlots || []
   } catch (error) {
     console.error(error)
   } finally {

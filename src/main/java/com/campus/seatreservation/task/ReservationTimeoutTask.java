@@ -4,10 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.campus.seatreservation.entity.Reservation;
 import com.campus.seatreservation.entity.StudyRoom;
+import com.campus.seatreservation.entity.TimeSlot;
 import com.campus.seatreservation.mapper.ReservationMapper;
 import com.campus.seatreservation.mapper.StudyRoomMapper;
+import com.campus.seatreservation.mapper.TimeSlotMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,38 +29,65 @@ public class ReservationTimeoutTask {
 
     private final ReservationMapper reservationMapper;
     private final StudyRoomMapper studyRoomMapper;
+    private final TimeSlotMapper timeSlotMapper;
 
     /**
-     * 定时取消超时预约
-     * 每5分钟执行一次，查找状态为booked且创建时间超过30分钟的预约，
-     * 将其状态改为cancelled并恢复对应的自习室库存。
+     * 定时回收预约
+     * 每5分钟执行一次：
+     * 1. 已预约但30分钟未签到 → 取消 + 恢复库存
+     * 2. 已签到/已预约但时段已结束 → 过期 + 恢复库存
      */
-    @Scheduled(fixedRate = 300000) // 每5分钟执行一次
+    @Scheduled(fixedRate = 300000)
     @Transactional
+    @CacheEvict(value = "rooms", allEntries = true)
     public void cancelTimeoutReservations() {
-        // 1. 查超时预约：状态=booked 且 创建超过30分钟未签到
-        LocalDateTime deadline = LocalDateTime.now().minusMinutes(30);
-        LambdaQueryWrapper<Reservation> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(Reservation::getStatus, "booked")
-                .lt(Reservation::getCreateTime, deadline);
+        LocalDateTime now = LocalDateTime.now();
 
-        List<Reservation> timeoutList = reservationMapper.selectList(queryWrapper);
+        // 1. 超时未签到：booked 超过30分钟 → 取消
+        LocalDateTime signDeadline = now.minusMinutes(30);
+        List<Reservation> timeoutList = reservationMapper.selectList(
+                new LambdaQueryWrapper<Reservation>()
+                        .eq(Reservation::getStatus, "booked")
+                        .lt(Reservation::getCreateTime, signDeadline));
 
-        if (timeoutList.isEmpty()) {
-            return;
-        }
-
-        // 2. 逐个取消 + 恢复库存
+        int count = 0;
         for (Reservation r : timeoutList) {
             r.setStatus("cancelled");
             reservationMapper.updateById(r);
-
-            LambdaUpdateWrapper<StudyRoom> updateWrapper = new LambdaUpdateWrapper<>();
-            updateWrapper.eq(StudyRoom::getId, r.getRoomId())
-                    .setSql("available_capacity = available_capacity + 1");
-            studyRoomMapper.update(null, updateWrapper);
+            restoreCapacity(r.getRoomId());
+            count++;
+        }
+        if (count > 0) {
+            log.info("超时未签到：取消 {} 条预约", count);
         }
 
-        log.info("定时回收完成：取消 {} 条超时预约", timeoutList.size());
+        // 2. 时段已结束：booked/signed 但 reservation_date + end_time 已过 → 过期释放
+        List<Reservation> activeList = reservationMapper.selectList(
+                new LambdaQueryWrapper<Reservation>()
+                        .in(Reservation::getStatus, "booked", "signed"));
+
+        int expiredCount = 0;
+        for (Reservation r : activeList) {
+            TimeSlot slot = timeSlotMapper.selectById(r.getTimeSlotId());
+            if (slot == null) continue;
+
+            LocalDateTime slotEnd = r.getReservationDate().atTime(slot.getEndTime());
+            if (now.isAfter(slotEnd)) {
+                r.setStatus("expired");
+                reservationMapper.updateById(r);
+                restoreCapacity(r.getRoomId());
+                expiredCount++;
+            }
+        }
+        if (expiredCount > 0) {
+            log.info("时段结束：过期 {} 条预约", expiredCount);
+        }
+    }
+
+    private void restoreCapacity(Long roomId) {
+        LambdaUpdateWrapper<StudyRoom> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(StudyRoom::getId, roomId)
+                .setSql("available_capacity = available_capacity + 1");
+        studyRoomMapper.update(null, updateWrapper);
     }
 }

@@ -1,23 +1,30 @@
 server:
   port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 
 spring:
   application:
     name: SeatReservation
 
   datasource:
-    url: jdbc:mysql://mysql:3306/seat_reservation?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf-8&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3307/seat_reservation?useSSL=false&serverTimezone=Asia/Shanghai&connectionCollation=utf8mb4_unicode_ci&allowPublicKeyRetrieval=true
     username: root
     password: 622824
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-init-sql: SET NAMES utf8mb4
 
   data:
     redis:
-      host: redis
+      host: localhost
       port: 6379
 
   rabbitmq:
-    host: rabbitmq
+    host: localhost
     port: 5672
     username: guest
     password: guest

@@ -2,6 +2,9 @@
 -- Seat Reservation System - Database Initialization
 -- ========================================
 
+-- 确保客户端编码为UTF-8，防止中文乱码
+SET NAMES utf8mb4;
+
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS seat_reservation DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

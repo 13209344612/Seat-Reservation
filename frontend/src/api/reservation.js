@@ -29,8 +29,8 @@ export function getReservationDetail(id) {
 // 取消预约
 export function cancelReservation(id) {
   return request({
-    url: `/reservations/${id}`,
-    method: 'delete'
+    url: `/reservations/${id}/cancel`,
+    method: 'post'
   })
 }
 

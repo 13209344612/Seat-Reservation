@@ -86,7 +86,18 @@ public class ReservationServiceImpl implements ReservationService {
                 throw new RuntimeException("该时段不属于此自习室");
             }
 
-            // 2. 乐观锁扣减库存（原子操作）
+            // 2. 检查同一用户是否已预约相同时段
+            LambdaQueryWrapper<Reservation> dupCheck = new LambdaQueryWrapper<>();
+            dupCheck.eq(Reservation::getUserId, userId)
+                    .eq(Reservation::getRoomId, request.getRoomId())
+                    .eq(Reservation::getTimeSlotId, request.getTimeSlotId())
+                    .eq(Reservation::getReservationDate, request.getReservationDate())
+                    .ne(Reservation::getStatus, "cancelled");
+            if (reservationMapper.selectCount(dupCheck) > 0) {
+                throw new RuntimeException("您已预约过该时段，请勿重复预约");
+            }
+
+            // 3. 乐观锁扣减库存（原子操作）
             // 分布式锁已经保证了并发安全，这里乐观锁作为第二道防线
             LambdaUpdateWrapper<StudyRoom> updateWrapper = new LambdaUpdateWrapper<>();
             updateWrapper.eq(StudyRoom::getId, request.getRoomId())
@@ -100,7 +111,7 @@ public class ReservationServiceImpl implements ReservationService {
                 throw new RuntimeException("该时段名额已满，请重试");
             }
 
-            // 3. 插入预约记录
+            // 4. 插入预约记录
             Reservation reservation = new Reservation();
             reservation.setUserId(userId);
             reservation.setRoomId(request.getRoomId());
@@ -111,7 +122,7 @@ public class ReservationServiceImpl implements ReservationService {
 
             log.info("用户 {} 预约成功，预约ID: {}", userId, reservation.getId());
 
-            // 4. 组装响应
+            // 5. 组装响应
             User user = userMapper.selectById(userId);
             // 构建短信消息
             SmsMessage smsMsg = new SmsMessage(
