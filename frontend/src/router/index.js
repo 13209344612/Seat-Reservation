@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import MainLayout from '@/layouts/MainLayout.vue'
 
 const routes = [
   {
@@ -16,33 +17,50 @@ const routes = [
   },
   {
     path: '/',
-    name: 'Home',
-    component: () => import('@/views/Home.vue'),
-    meta: { requiresAuth: true }
+    component: MainLayout,
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'Home',
+        component: () => import('@/views/Home.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'rooms',
+        name: 'Rooms',
+        component: () => import('@/views/Rooms.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'rooms/:id',
+        name: 'RoomDetail',
+        component: () => import('@/views/RoomDetail.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'reservations',
+        name: 'Reservations',
+        component: () => import('@/views/Reservations.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'assistant',
+        name: 'Assistant',
+        component: () => import('@/views/Assistant.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'admin/rooms',
+        name: 'AdminRooms',
+        component: () => import('@/views/AdminRooms.vue'),
+        meta: { requiresAuth: true }
+      }
+    ]
   },
   {
-    path: '/rooms',
-    name: 'Rooms',
-    component: () => import('@/views/Rooms.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/rooms/:id',
-    name: 'RoomDetail',
-    component: () => import('@/views/RoomDetail.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/reservations',
-    name: 'Reservations',
-    component: () => import('@/views/Reservations.vue'),
-    meta: { requiresAuth: true }
-  },
-  {
-    path: '/admin/rooms',
-    name: 'AdminRooms',
-    component: () => import('@/views/AdminRooms.vue'),
-    meta: { requiresAuth: true }
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
   }
 ]
 
@@ -54,7 +72,7 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
-  
+
   if (to.meta.requiresAuth && !userStore.token) {
     next('/login')
   } else if ((to.path === '/login' || to.path === '/register') && userStore.token) {

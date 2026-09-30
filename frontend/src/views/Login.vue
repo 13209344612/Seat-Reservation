@@ -1,42 +1,46 @@
 <template>
-  <div class="login-container">
-    <el-card class="login-card">
-      <h2 class="title">座位预约系统</h2>
-      <el-form :model="form" :rules="rules" ref="formRef">
+  <div class="auth">
+    <div class="auth-card soft-card">
+      <div class="auth-brand">
+        <span class="brand-logo"><el-icon><Notebook /></el-icon></span>
+        <h1>座位预约系统</h1>
+        <p>登录后开始预约你的学习座位</p>
+      </div>
+      <el-form :model="form" :rules="rules" ref="formRef" size="large">
         <el-form-item prop="username">
-          <el-input 
-            v-model="form.username" 
+          <el-input
+            v-model="form.username"
             placeholder="用户名"
             prefix-icon="User"
-            size="large"
           />
         </el-form-item>
         <el-form-item prop="password">
-          <el-input 
-            v-model="form.password" 
+          <el-input
+            v-model="form.password"
             type="password"
             placeholder="密码"
             prefix-icon="Lock"
-            size="large"
             show-password
+            @keyup.enter="handleLogin"
           />
         </el-form-item>
         <el-form-item>
-          <el-button 
-            type="primary" 
+          <el-button
+            type="primary"
             size="large"
+            round
+            style="width: 100%"
             :loading="loading"
             @click="handleLogin"
-            style="width: 100%"
           >
             登录
           </el-button>
         </el-form-item>
-        <div class="links">
-          <router-link to="/register">还没有账号？立即注册</router-link>
-        </div>
       </el-form>
-    </el-card>
+      <div class="auth-foot">
+        还没有账号？<router-link to="/register">立即注册</router-link>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -69,7 +73,7 @@ const rules = {
 
 const handleLogin = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true
@@ -88,39 +92,3 @@ const handleLogin = async () => {
   })
 }
 </script>
-
-<style scoped>
-.login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.login-card {
-  width: 400px;
-  padding: 20px;
-}
-
-.title {
-  text-align: center;
-  margin-bottom: 30px;
-  color: #333;
-  font-size: 24px;
-}
-
-.links {
-  text-align: center;
-  margin-top: 10px;
-}
-
-.links a {
-  color: #409eff;
-  text-decoration: none;
-}
-
-.links a:hover {
-  text-decoration: underline;
-}
-</style>

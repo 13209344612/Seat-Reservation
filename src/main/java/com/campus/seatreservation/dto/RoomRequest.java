@@ -33,6 +33,9 @@ public class RoomRequest {
      */
     @Data
     public static class TimeSlotItem {
+        /** 时段ID：新增时为 null，编辑时回传既有时段的 id 以支持就地更新 */
+        private Long id;
+
         /** 开始时间，格式 "08:00" */
         @NotNull(message = "开始时间不能为空")
         private String startTime;   // 格式 "08:00"

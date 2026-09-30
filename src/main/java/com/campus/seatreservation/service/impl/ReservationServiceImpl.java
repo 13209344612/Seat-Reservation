@@ -21,9 +21,11 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,7 +34,9 @@ import java.util.stream.Collectors;
  * 预约业务层实现
  *
  * 处理座位预约、签到、取消等核心业务逻辑。
- * 使用分布式锁 + 乐观锁双重保障，防止并发预约时的超卖问题。
+ * 库存为派生计数：按「房间+日期+时段」维度实时统计活跃预约数，无房间级计数器。
+ * 并发防超卖由 room+date+slot 维度的 Redisson 分布式锁 + 锁内派生计数校验 +
+ * 唯一索引 uk_active_reservation 三层保障。
  */
 @Slf4j
 @Service
@@ -47,10 +51,10 @@ public class ReservationServiceImpl implements ReservationService {
     private final RedissonClient redissonClient;
 
     /**
-     * 创建预约（事务操作 + 分布式锁 + 乐观锁）
-     * 
-     * 使用分布式锁保证同一时刻只有一个请求能处理同一自习室的预约，
-     * 避免高并发下的超卖问题。分布式锁作为第一道防线，乐观锁作为第二道防线。
+     * 创建预约（事务操作 + 分布式锁 + 派生计数校验）
+     *
+     * 分布式锁按 room+date+slot 维度串行化，锁内统计活跃预约数与总容量比较做余量校验，
+     * 唯一索引 uk_active_reservation 作为兜底防线，共同防止高并发下的超卖与重复预约。
      */
     @Override
     @Transactional
@@ -86,49 +90,56 @@ public class ReservationServiceImpl implements ReservationService {
                 throw new RuntimeException("该时段不属于此自习室");
             }
 
-            // 2. 检查同一用户是否已预约相同时段
+            // 2. 日期校验：只能预约今天或未来
+            if (request.getReservationDate().isBefore(LocalDate.now())) {
+                throw new RuntimeException("不能预约过去的日期");
+            }
+
+            // 3. 重复校验：同一用户对同一(房间+时段+日期)只能有一个活跃预约
             LambdaQueryWrapper<Reservation> dupCheck = new LambdaQueryWrapper<>();
             dupCheck.eq(Reservation::getUserId, userId)
                     .eq(Reservation::getRoomId, request.getRoomId())
                     .eq(Reservation::getTimeSlotId, request.getTimeSlotId())
                     .eq(Reservation::getReservationDate, request.getReservationDate())
-                    .ne(Reservation::getStatus, "cancelled");
+                    .in(Reservation::getStatus, "booked", "signed");
             if (reservationMapper.selectCount(dupCheck) > 0) {
                 throw new RuntimeException("您已预约过该时段，请勿重复预约");
             }
 
-            // 3. 乐观锁扣减库存（原子操作）
-            // 分布式锁已经保证了并发安全，这里乐观锁作为第二道防线
-            LambdaUpdateWrapper<StudyRoom> updateWrapper = new LambdaUpdateWrapper<>();
-            updateWrapper.eq(StudyRoom::getId, request.getRoomId())
-                    .gt(StudyRoom::getAvailableCapacity, 0)  // 确保还有余量
-                    .eq(StudyRoom::getVersion, room.getVersion())  // 版本号匹配
-                    .setSql("available_capacity = available_capacity - 1")  // 原子扣减
-                    .setSql("version = version + 1");  // 版本号递增
-
-            int affected = studyRoomMapper.update(null, updateWrapper);
-            if (affected == 0) {
+            // 4. 派生计数校验余量：统计该(房间+时段+日期)下的活跃预约数
+            //    分布式锁已按 room+date+slot 维度串行化，此处计数不存在竞态
+            LambdaQueryWrapper<Reservation> capacityCheck = new LambdaQueryWrapper<>();
+            capacityCheck.eq(Reservation::getRoomId, request.getRoomId())
+                    .eq(Reservation::getTimeSlotId, request.getTimeSlotId())
+                    .eq(Reservation::getReservationDate, request.getReservationDate())
+                    .in(Reservation::getStatus, "booked", "signed");
+            long bookedCount = reservationMapper.selectCount(capacityCheck);
+            if (bookedCount >= room.getTotalCapacity()) {
                 throw new RuntimeException("该时段名额已满，请重试");
             }
 
-            // 4. 插入预约记录
+            // 5. 插入预约记录（唯一索引 uk_active_reservation 作为兜底防线）
             Reservation reservation = new Reservation();
             reservation.setUserId(userId);
             reservation.setRoomId(request.getRoomId());
             reservation.setTimeSlotId(request.getTimeSlotId());
             reservation.setReservationDate(request.getReservationDate());
             reservation.setStatus("booked");
-            reservationMapper.insert(reservation);
+            try {
+                reservationMapper.insert(reservation);
+            } catch (DuplicateKeyException e) {
+                throw new RuntimeException("您已预约过该时段，请勿重复预约");
+            }
 
             log.info("用户 {} 预约成功，预约ID: {}", userId, reservation.getId());
 
-            // 5. 组装响应
+            // 6. 组装响应
             User user = userMapper.selectById(userId);
             // 构建短信消息
             SmsMessage smsMsg = new SmsMessage(
                     reservation.getId(),
                     userId,
-                    user.getPhone(),            // User 实体需加 phone 字段
+                    user.getPhone(),
                     user.getUsername(),
                     room.getName(),
                     slot.getStartTime() + "-" + slot.getEndTime(),
@@ -216,7 +227,9 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     /**
-     * 取消预约（事务操作 + 恢复库存）
+     * 取消预约（事务操作）
+     *
+     * 库存为派生计数，取消后活跃预约数自然减少即释放余量，无需恢复计数器。
      */
     @Override
     @Transactional
@@ -232,16 +245,17 @@ public class ReservationServiceImpl implements ReservationService {
             throw new RuntimeException("当前状态不可取消：" + reservation.getStatus());
         }
 
-        // 1. 更新预约状态为已取消
+        // 条件更新：仅当仍为 booked 时才置为 cancelled，防止并发重复取消
+        // 库存为派生计数，取消后自然释放，无需恢复计数器
+        LambdaUpdateWrapper<Reservation> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Reservation::getId, reservationId)
+                .eq(Reservation::getStatus, "booked")
+                .set(Reservation::getStatus, "cancelled");
+        int affected = reservationMapper.update(null, updateWrapper);
+        if (affected == 0) {
+            throw new RuntimeException("当前状态不可取消");
+        }
         reservation.setStatus("cancelled");
-        reservationMapper.updateById(reservation);
-
-        // 2. 恢复库存（原子操作）
-        LambdaUpdateWrapper<StudyRoom> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.eq(StudyRoom::getId, reservation.getRoomId())
-                .setSql("available_capacity = available_capacity + 1");
-
-        studyRoomMapper.update(null, updateWrapper);
 
         return toReserveResponse(reservation,
                 userMapper.selectById(userId),

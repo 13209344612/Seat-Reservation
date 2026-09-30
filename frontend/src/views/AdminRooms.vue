@@ -1,50 +1,49 @@
 <template>
-  <div class="admin-container">
-    <el-container>
-      <el-header>
-        <div class="header-content">
-          <h1>自习室管理（管理员）</h1>
-          <div class="user-info">
-            <span>{{ userStore.userInfo?.username }}</span>
-            <el-button @click="$router.push('/')">首页</el-button>
-            <el-button @click="$router.push('/rooms')">自习室</el-button>
-            <el-button type="danger" @click="handleLogout">退出</el-button>
-          </div>
-        </div>
-      </el-header>
+  <div class="page">
+    <div class="page-head head-row">
+      <div>
+        <h1 class="page-title">自习室管理</h1>
+        <p class="page-desc">新增、编辑与删除自习室及其开放时段</p>
+      </div>
+      <el-button type="primary" round @click="openAdd">
+        <el-icon><Plus /></el-icon>新增自习室
+      </el-button>
+    </div>
 
-      <el-main>
-        <div class="toolbar">
-          <el-button type="primary" @click="openAdd">
-            <el-icon><Plus /></el-icon> 新增自习室
-          </el-button>
-        </div>
-
-        <el-table :data="roomList" v-loading="loading" border>
-          <el-table-column prop="id" label="ID" width="60" />
-          <el-table-column prop="name" label="名称" min-width="180" />
-          <el-table-column prop="totalCapacity" label="总容量" width="100" />
-          <el-table-column prop="availableCapacity" label="剩余" width="100" />
-          <el-table-column label="时段" min-width="260">
-            <template #default="{ row }">
-              <el-tag v-for="slot in row.timeSlots" :key="slot.id" size="small" style="margin-right:6px">
-                {{ slot.startTime?.substring(0, 5) }} - {{ slot.endTime?.substring(0, 5) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="180" fixed="right">
-            <template #default="{ row }">
-              <el-button type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-              <el-button type="danger" size="small" @click="handleDelete(row.id)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-main>
-    </el-container>
+    <div class="soft-card table-card">
+      <el-table :data="roomList" v-loading="loading" style="width: 100%">
+        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="name" label="名称" min-width="160" />
+        <el-table-column prop="totalCapacity" label="总容量" width="100" />
+        <el-table-column label="开放时段" min-width="280">
+          <template #default="{ row }">
+            <el-tag
+              v-for="slot in row.timeSlots"
+              :key="slot.id"
+              size="small"
+              effect="light"
+              round
+              class="slot-tag"
+            >
+              {{ slot.startTime?.substring(0, 5) }} - {{ slot.endTime?.substring(0, 5) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="160" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link @click="openEdit(row)">编辑</el-button>
+            <el-button type="danger" link @click="handleDelete(row.id)">删除</el-button>
+          </template>
+        </el-table-column>
+        <template #empty>
+          <el-empty description="暂无自习室" />
+        </template>
+      </el-table>
+    </div>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑自习室' : '新增自习室'" width="550px">
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑自习室' : '新增自习室'" width="560px">
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="90px">
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入自习室名称" />
         </el-form-item>
@@ -52,15 +51,19 @@
           <el-input-number v-model="form.totalCapacity" :min="1" />
         </el-form-item>
         <el-form-item label="时段设置">
-          <div v-for="(slot, index) in form.timeSlots" :key="index" class="slot-row">
-            <el-time-picker v-model="slot.startTime" format="HH:mm" value-format="HH:mm" placeholder="开始时间" style="width:150px" />
-            <span style="margin: 0 8px">至</span>
-            <el-time-picker v-model="slot.endTime" format="HH:mm" value-format="HH:mm" placeholder="结束时间" style="width:150px" />
-            <el-button type="danger" :icon="Delete" circle size="small" @click="removeSlot(index)" :disabled="form.timeSlots.length <= 1" />
+          <div class="slot-editor">
+            <div v-for="(slot, index) in form.timeSlots" :key="index" class="slot-row">
+              <el-time-picker v-model="slot.startTime" format="HH:mm" value-format="HH:mm" placeholder="开始" style="width:130px" />
+              <span class="slot-sep">至</span>
+              <el-time-picker v-model="slot.endTime" format="HH:mm" value-format="HH:mm" placeholder="结束" style="width:130px" />
+              <el-button type="danger" circle size="small" plain @click="removeSlot(index)" :disabled="form.timeSlots.length <= 1">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </div>
+            <el-button type="primary" plain size="small" @click="addSlot">
+              <el-icon><Plus /></el-icon>添加时段
+            </el-button>
           </div>
-          <el-button type="success" size="small" @click="addSlot" style="margin-top: 8px">
-            <el-icon><Plus /></el-icon> 添加时段
-          </el-button>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -73,13 +76,8 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRoomList, createRoom, updateRoom, deleteRoom } from '@/api/room'
-import { useUserStore } from '@/stores/user'
-
-const router = useRouter()
-const userStore = useUserStore()
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -92,7 +90,7 @@ const formRef = ref(null)
 const form = reactive({
   name: '',
   totalCapacity: 10,
-  timeSlots: [{ startTime: '', endTime: '' }]
+  timeSlots: [{ id: null, startTime: '', endTime: '' }]
 })
 
 const rules = {
@@ -114,7 +112,7 @@ const loadRooms = async () => {
 const resetForm = () => {
   form.name = ''
   form.totalCapacity = 10
-  form.timeSlots = [{ startTime: '', endTime: '' }]
+  form.timeSlots = [{ id: null, startTime: '', endTime: '' }]
   editingId.value = null
   isEdit.value = false
 }
@@ -130,17 +128,18 @@ const openEdit = (row) => {
   form.name = row.name
   form.totalCapacity = row.totalCapacity
   form.timeSlots = (row.timeSlots || []).map(s => ({
+    id: s.id,
     startTime: s.startTime ? s.startTime.substring(0, 5) : '',
     endTime: s.endTime ? s.endTime.substring(0, 5) : ''
   }))
   if (form.timeSlots.length === 0) {
-    form.timeSlots = [{ startTime: '', endTime: '' }]
+    form.timeSlots = [{ id: null, startTime: '', endTime: '' }]
   }
   dialogVisible.value = true
 }
 
 const addSlot = () => {
-  form.timeSlots.push({ startTime: '', endTime: '' })
+  form.timeSlots.push({ id: null, startTime: '', endTime: '' })
 }
 
 const removeSlot = (index) => {
@@ -159,25 +158,24 @@ const handleSubmit = async () => {
     }
 
     const timeSlots = validSlots.map(s => ({
+      id: s.id ?? null,
       startTime: s.startTime + ':00',
       endTime: s.endTime + ':00'
     }))
 
+    const payload = {
+      name: form.name,
+      totalCapacity: form.totalCapacity,
+      timeSlots
+    }
+
     submitting.value = true
     try {
       if (isEdit.value) {
-        await updateRoom(editingId.value, {
-          name: form.name,
-          totalCapacity: form.totalCapacity,
-          timeSlots
-        })
+        await updateRoom(editingId.value, payload)
         ElMessage.success('修改成功')
       } else {
-        await createRoom({
-          name: form.name,
-          totalCapacity: form.totalCapacity,
-          timeSlots
-        })
+        await createRoom(payload)
         ElMessage.success('新增成功')
       }
       dialogVisible.value = false
@@ -205,23 +203,41 @@ const handleDelete = async (id) => {
   }
 }
 
-const handleLogout = () => {
-  userStore.logout()
-  router.push('/login')
-}
-
 onMounted(() => {
   loadRooms()
 })
 </script>
 
 <style scoped>
-.admin-container { height: 100vh; }
-.el-header { background-color: #409eff; color: white; line-height: 60px; padding: 0 20px; }
-.header-content { display: flex; justify-content: space-between; align-items: center; }
-.header-content h1 { margin: 0; font-size: 24px; }
-.user-info { display: flex; align-items: center; gap: 10px; }
-.el-main { background-color: #f5f7fa; padding: 20px; }
-.toolbar { margin-bottom: 16px; }
-.slot-row { display: flex; align-items: center; margin-bottom: 8px; }
+.head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.table-card {
+  padding: 8px 12px 12px;
+  overflow: hidden;
+}
+
+.slot-tag {
+  margin: 3px 6px 3px 0;
+}
+
+.slot-editor {
+  width: 100%;
+}
+
+.slot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.slot-sep {
+  color: var(--app-text-muted);
+  font-size: 14px;
+}
 </style>

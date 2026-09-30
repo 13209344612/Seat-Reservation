@@ -1,145 +1,166 @@
 <template>
-  <div class="home-container">
-    <el-container>
-      <el-header>
-        <div class="header-content">
-          <h1>座位预约系统</h1>
-          <div class="user-info">
-            <span>{{ userStore.userInfo?.username }}</span>
-            <el-button type="danger" size="small" @click="handleLogout">退出</el-button>
-          </div>
-        </div>
-      </el-header>
-      
-      <el-main>
-        <div class="welcome-card">
-          <h2>欢迎使用校园座位预约系统</h2>
-          <p>快速预约，轻松学习</p>
-          <el-button type="primary" size="large" @click="$router.push('/rooms')">
-            开始预约
-          </el-button>
-        </div>
+  <div class="page">
+    <!-- 欢迎区 -->
+    <section class="hero soft-card">
+      <div class="hero-text">
+        <h1>你好，{{ userStore.userInfo?.username }} 👋</h1>
+        <p>欢迎使用校园座位预约系统，快速预约，轻松学习。</p>
+        <el-button type="primary" size="large" round @click="$router.push('/rooms')">
+          开始预约
+          <el-icon class="btn-icon"><ArrowRight /></el-icon>
+        </el-button>
+      </div>
+      <div class="hero-art">
+        <el-icon><Reading /></el-icon>
+      </div>
+    </section>
 
-        <el-row :gutter="20" style="margin-top: 30px;">
-          <el-col :span="userStore.userInfo?.role === 'admin' ? 6 : 8">
-            <el-card shadow="hover" @click="$router.push('/rooms')">
-              <el-icon size="40" color="#409eff"><Reading /></el-icon>
-              <h3>自习室浏览</h3>
-              <p>查看可用自习室</p>
-            </el-card>
-          </el-col>
-          <el-col :span="userStore.userInfo?.role === 'admin' ? 6 : 8">
-            <el-card shadow="hover" @click="$router.push('/rooms')">
-              <el-icon size="40" color="#67c23a"><Calendar /></el-icon>
-              <h3>在线预约</h3>
-              <p>随时随地预约座位</p>
-            </el-card>
-          </el-col>
-          <el-col :span="userStore.userInfo?.role === 'admin' ? 6 : 8">
-            <el-card shadow="hover" @click="$router.push('/reservations')">
-              <el-icon size="40" color="#e6a23c"><Tickets /></el-icon>
-              <h3>预约管理</h3>
-              <p>查看和管理我的预约</p>
-            </el-card>
-          </el-col>
-          <el-col :span="6" v-if="userStore.userInfo?.role === 'admin'">
-            <el-card shadow="hover" @click="$router.push('/admin/rooms')">
-              <el-icon size="40" color="#f56c6c"><Setting /></el-icon>
-              <h3>自习室管理</h3>
-              <p>增删改自习室</p>
-            </el-card>
-          </el-col>
-        </el-row>
-      </el-main>
-    </el-container>
+    <!-- 快捷入口 -->
+    <div class="section-head">
+      <h2>快捷入口</h2>
+    </div>
+    <el-row :gutter="20">
+      <el-col
+        v-for="entry in entries"
+        :key="entry.path"
+        :xs="24" :sm="12" :md="8"
+      >
+        <div class="entry-card soft-card" @click="$router.push(entry.path)">
+          <span class="icon-tile entry-icon">
+            <el-icon size="24"><component :is="entry.icon" /></el-icon>
+          </span>
+          <div class="entry-body">
+            <h3>{{ entry.title }}</h3>
+            <p>{{ entry.desc }}</p>
+          </div>
+          <el-icon class="entry-arrow"><ArrowRight /></el-icon>
+        </div>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useUserStore } from '@/stores/user'
-import { useRouter } from 'vue-router'
 
-const router = useRouter()
 const userStore = useUserStore()
 
-const handleLogout = () => {
-  userStore.logout()
-  router.push('/login')
-}
+const entries = computed(() => {
+  const list = [
+    { path: '/rooms', icon: 'Reading', title: '自习室浏览', desc: '查看可用自习室与余量' },
+    { path: '/reservations', icon: 'Tickets', title: '我的预约', desc: '签到、取消与管理预约' },
+    { path: '/assistant', icon: 'ChatDotRound', title: 'AI 预约助手', desc: '对话式智能查询与预约' }
+  ]
+  if (userStore.userInfo?.role === 'admin') {
+    list.push({ path: '/admin/rooms', icon: 'Setting', title: '自习室管理', desc: '新增、编辑与删除自习室' })
+  }
+  return list
+})
 </script>
 
 <style scoped>
-.home-container {
-  height: 100vh;
-}
-
-.el-header {
-  background-color: #409eff;
-  color: white;
-  line-height: 60px;
-  padding: 0 20px;
-}
-
-.header-content {
+.hero {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
+  gap: 24px;
+  padding: 36px 32px;
+  margin-bottom: 28px;
+  background: linear-gradient(135deg, #ffffff 0%, #eef3fe 100%);
 }
 
-.header-content h1 {
-  margin: 0;
-  font-size: 24px;
+.hero-text h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--app-text-title);
 }
 
-.user-info {
+.hero-text p {
+  margin: 0 0 20px;
+  font-size: 15px;
+  color: var(--app-text-muted);
+}
+
+.btn-icon {
+  margin-left: 6px;
+}
+
+.hero-art {
   display: flex;
   align-items: center;
-  gap: 15px;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  flex-shrink: 0;
+  border-radius: 24px;
+  background: var(--app-primary-soft);
+  color: var(--el-color-primary);
+  font-size: 56px;
 }
 
-.el-main {
-  background-color: #f5f7fa;
+.section-head {
+  margin-bottom: 16px;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--app-text-title);
+}
+
+.entry-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   padding: 20px;
-}
-
-.welcome-card {
-  text-align: center;
-  padding: 60px 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-}
-
-.welcome-card h2 {
-  font-size: 32px;
-  margin-bottom: 10px;
-  color: #333;
-}
-
-.welcome-card p {
-  font-size: 16px;
-  color: #666;
-  margin-bottom: 30px;
-}
-
-.el-card {
-  text-align: center;
-  padding: 20px;
+  margin-bottom: 20px;
   cursor: pointer;
-  transition: transform 0.3s;
+  transition: transform .2s, box-shadow .2s;
 }
 
-.el-card:hover {
-  transform: translateY(-5px);
+.entry-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--app-shadow-hover);
 }
 
-.el-card h3 {
-  margin: 15px 0 10px;
-  color: #333;
+.entry-icon {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
 }
 
-.el-card p {
-  color: #666;
-  font-size: 14px;
+.entry-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.entry-body h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--app-text-title);
+}
+
+.entry-body p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--app-text-muted);
+}
+
+.entry-arrow {
+  color: #c7ccd4;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 28px 22px;
+  }
+  .hero-art {
+    display: none;
+  }
 }
 </style>

@@ -3,6 +3,7 @@ package com.campus.seatreservation.config;
 import com.campus.seatreservation.mapper.UserMapper;
 import com.campus.seatreservation.security.JwtAuthenticationFilter;
 import com.campus.seatreservation.util.JwtUtils;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -44,6 +45,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))  // 无状态会话
                 .authorizeHttpRequests(auth -> auth
+                        // SSE/流式等异步派发(ASYNC)与错误派发(ERROR)会重走过滤链，但运行在无 SecurityContext 的线程上；
+                        // 原始 REQUEST 派发已完成 JWT 鉴权，故对这两种派发类型放行，避免 Access Denied 中断流。
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/auth/**").permitAll()  // 认证接口放行
                         .anyRequest().authenticated()  // 其他接口需要认证
                 )

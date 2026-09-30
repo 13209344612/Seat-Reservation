@@ -3,14 +3,17 @@ package com.campus.seatreservation.controller;
 import com.campus.seatreservation.common.Result;
 import com.campus.seatreservation.dto.RoomRequest;
 import com.campus.seatreservation.dto.RoomResponse;
+import com.campus.seatreservation.dto.SlotAvailability;
 import com.campus.seatreservation.service.StudyRoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -41,6 +44,16 @@ public class StudyRoomController {
     @GetMapping("/{id}")
     public Result<RoomResponse> getById(@PathVariable Long id) {
         return Result.success(studyRoomService.getRoomById(id));
+    }
+
+    /**
+     * 根据日期查询自习室各时段的座位余量（date 缺省为今天）
+     */
+    @GetMapping("/{id}/availability")
+    public Result<List<SlotAvailability>> availability(
+            @PathVariable Long id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return Result.success(studyRoomService.getAvailability(id, date == null ? LocalDate.now() : date));
     }
 
     /**

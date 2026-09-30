@@ -1,5 +1,6 @@
 package com.campus.seatreservation.common;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,6 +14,7 @@ import java.util.stream.Collectors;
  * 统一处理系统中抛出的异常，返回标准化的错误响应。
  * 防止敏感信息泄露，提供友好的错误提示。
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -42,5 +44,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RuntimeException.class)
     public Result<Void> handleRuntimeException(RuntimeException e) {
         return Result.error(400, e.getMessage());
+    }
+
+    /**
+     * 兜底处理其余未捕获异常（含 AI 调用超时/限流、第三方 SDK 异常等）。
+     * 记录日志便于排查，对外仅返回通用提示，避免泄露内部堆栈与敏感细节。
+     */
+    @ExceptionHandler(Exception.class)
+    public Result<Void> handleException(Exception e) {
+        log.error("服务器内部错误", e);
+        return Result.error(500, "服务器繁忙，请稍后重试");
     }
 }

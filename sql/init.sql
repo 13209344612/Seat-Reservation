@@ -25,13 +25,13 @@ CREATE TABLE IF NOT EXISTS `user` (
 
 -- ========================================
 -- 2. 自习室表
+--    座位余量不再存储为计数器，改为按「房间+日期+时段」维度
+--    从 reservation 表实时派生统计，故无 available_capacity / version 列。
 -- ========================================
 CREATE TABLE IF NOT EXISTS `study_room` (
     `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '自习室ID',
     `name` VARCHAR(64) NOT NULL COMMENT '自习室名称',
     `total_capacity` INT NOT NULL COMMENT '总容量',
-    `available_capacity` INT NOT NULL COMMENT '可用容量',
-    `version` INT DEFAULT 0 COMMENT '版本号（乐观锁）',
     `status` TINYINT DEFAULT 0 COMMENT '状态：0-正常，1-维护',
     `location` VARCHAR(128) COMMENT '位置信息',
     `description` VARCHAR(500) COMMENT '描述',
@@ -68,10 +68,16 @@ CREATE TABLE IF NOT EXISTS `reservation` (
     `cancel_time` DATETIME COMMENT '取消时间',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    -- 生成列：仅对活跃预约(booked/signed)生成去重键，取消/过期后置 NULL，
+    -- 使 MySQL 唯一索引允许多个 NULL，从而实现「取消后可重约、活跃预约不可重复」
+    `active_unique` VARCHAR(128) GENERATED ALWAYS AS (
+        IF(`status` IN ('booked','signed'),
+           CONCAT_WS('#', `user_id`, `room_id`, `time_slot_id`, `reservation_date`), NULL)
+    ) VIRTUAL COMMENT '活跃预约去重键（VIRTUAL；勿改STORED，会与基列的ON DELETE CASCADE外键冲突）',
     FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`room_id`) REFERENCES `study_room`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`time_slot_id`) REFERENCES `time_slot`(`id`) ON DELETE CASCADE,
-    UNIQUE KEY uk_user_room_slot_date (`user_id`, `room_id`, `time_slot_id`, `reservation_date`),
+    UNIQUE KEY uk_active_reservation (`active_unique`),
     INDEX idx_user_id (`user_id`),
     INDEX idx_room_id (`room_id`),
     INDEX idx_reservation_date (`reservation_date`),
@@ -79,26 +85,56 @@ CREATE TABLE IF NOT EXISTS `reservation` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预约记录表';
 
 -- ========================================
+-- 5. AI 会话表
+--    持久化 AI 助手的多轮会话，供前端历史会话列表/回溯使用。
+--    conversation_id 与 Spring AI ChatMemory 及前端保持一致。
+-- ========================================
+CREATE TABLE IF NOT EXISTS `ai_conversation` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
+    `conversation_id` VARCHAR(64) NOT NULL COMMENT '会话ID（与ChatMemory/前端一致）',
+    `user_id` BIGINT NOT NULL COMMENT '所属用户ID',
+    `title` VARCHAR(128) NOT NULL DEFAULT '新对话' COMMENT '会话标题（取首条提问）',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后活跃时间',
+    UNIQUE KEY uk_conversation_id (`conversation_id`),
+    INDEX idx_user_update (`user_id`, `update_time`),
+    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 会话表';
+
+-- ========================================
+-- 6. AI 消息表
+-- ========================================
+CREATE TABLE IF NOT EXISTS `ai_message` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
+    `conversation_id` VARCHAR(64) NOT NULL COMMENT '会话ID',
+    `role` VARCHAR(16) NOT NULL COMMENT '角色：user/assistant',
+    `content` TEXT NOT NULL COMMENT '消息内容',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_conversation (`conversation_id`, `id`),
+    FOREIGN KEY (`conversation_id`) REFERENCES `ai_conversation`(`conversation_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 消息表';
+
+-- ========================================
 -- 插入测试数据
 -- ========================================
 
 -- 插入自习室数据
-INSERT INTO `study_room` (`id`, `name`, `total_capacity`, `available_capacity`, `location`, `description`) VALUES
-(1, '自习室A（1号馆）', 50, 50, '图书馆1楼', '安静舒适，适合深度学习'),
-(2, '自习室B（2号馆）', 30, 30, '图书馆2楼', '采光良好，视野开阔'),
-(3, '自习室C（图书馆）', 80, 80, '图书馆3楼', '空间宽敞，设施齐全');
+INSERT INTO `study_room` (`id`, `name`, `total_capacity`, `location`, `description`) VALUES
+(1, '自习室A（1号馆）', 50, '图书馆1楼', '安静舒适，适合深度学习'),
+(2, '自习室B（2号馆）', 30, '图书馆2楼', '采光良好，视野开阔'),
+(3, '自习室C（图书馆）', 80, '图书馆3楼', '空间宽敞，设施齐全');
 
 -- 插入时段数据
 INSERT INTO `time_slot` (`room_id`, `start_time`, `end_time`) VALUES
 (1, '08:00:00', '12:00:00'),
-(1, '13:00:00', '17:00:00'),
-(1, '18:00:00', '22:00:00'),
+(1, '12:00:00', '17:00:00'),
+(1, '17:00:00', '22:00:00'),
 (2, '08:00:00', '12:00:00'),
-(2, '13:00:00', '17:00:00'),
-(2, '18:00:00', '22:00:00'),
+(2, '12:00:00', '17:00:00'),
+(2, '17:00:00', '22:00:00'),
 (3, '08:00:00', '12:00:00'),
-(3, '13:00:00', '17:00:00'),
-(3, '18:00:00', '22:00:00');
+(3, '12:00:00', '17:00:00'),
+(3, '17:00:00', '22:00:00');
 
 -- 插入测试用户（密码都是 123456，BCrypt 加密后的值）
 INSERT INTO `user` (`username`, `password`, `role`) VALUES

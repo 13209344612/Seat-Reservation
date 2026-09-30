@@ -17,6 +17,15 @@ export function getRoomDetail(id) {
   })
 }
 
+// 获取某自习室在指定日期下各时段的座位余量
+export function getAvailability(id, date) {
+  return request({
+    url: `/rooms/${id}/availability`,
+    method: 'get',
+    params: { date }
+  })
+}
+
 // 创建自习室（管理员）
 export function createRoom(data) {
   return request({

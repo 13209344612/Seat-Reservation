@@ -1,60 +1,61 @@
 <template>
-  <div class="register-container">
-    <el-card class="register-card">
-      <h2 class="title">用户注册</h2>
-      <el-form :model="form" :rules="rules" ref="formRef">
+  <div class="auth">
+    <div class="auth-card soft-card">
+      <div class="auth-brand">
+        <span class="brand-logo"><el-icon><Notebook /></el-icon></span>
+        <h1>创建账号</h1>
+        <p>注册后即可预约校园自习室座位</p>
+      </div>
+      <el-form :model="form" :rules="rules" ref="formRef" size="large">
         <el-form-item prop="username">
-          <el-input 
-            v-model="form.username" 
+          <el-input
+            v-model="form.username"
             placeholder="用户名"
             prefix-icon="User"
-            size="large"
           />
         </el-form-item>
         <el-form-item prop="password">
-          <el-input 
-            v-model="form.password" 
+          <el-input
+            v-model="form.password"
             type="password"
             placeholder="密码"
             prefix-icon="Lock"
-            size="large"
             show-password
           />
         </el-form-item>
         <el-form-item prop="confirmPassword">
-          <el-input 
-            v-model="form.confirmPassword" 
+          <el-input
+            v-model="form.confirmPassword"
             type="password"
             placeholder="确认密码"
             prefix-icon="Lock"
-            size="large"
             show-password
           />
         </el-form-item>
         <el-form-item prop="phone">
-          <el-input 
-            v-model="form.phone" 
+          <el-input
+            v-model="form.phone"
             placeholder="手机号（可选）"
-            prefix-icon="Phone"
-            size="large"
+            prefix-icon="Iphone"
           />
         </el-form-item>
         <el-form-item>
-          <el-button 
-            type="primary" 
+          <el-button
+            type="primary"
             size="large"
+            round
+            style="width: 100%"
             :loading="loading"
             @click="handleRegister"
-            style="width: 100%"
           >
             注册
           </el-button>
         </el-form-item>
-        <div class="links">
-          <router-link to="/login">已有账号？立即登录</router-link>
-        </div>
       </el-form>
-    </el-card>
+      <div class="auth-foot">
+        已有账号？<router-link to="/login">立即登录</router-link>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -103,7 +104,7 @@ const rules = {
 
 const handleRegister = async () => {
   if (!formRef.value) return
-  
+
   await formRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true
@@ -121,39 +122,3 @@ const handleRegister = async () => {
   })
 }
 </script>
-
-<style scoped>
-.register-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.register-card {
-  width: 400px;
-  padding: 20px;
-}
-
-.title {
-  text-align: center;
-  margin-bottom: 30px;
-  color: #333;
-  font-size: 24px;
-}
-
-.links {
-  text-align: center;
-  margin-top: 10px;
-}
-
-.links a {
-  color: #409eff;
-  text-decoration: none;
-}
-
-.links a:hover {
-  text-decoration: underline;
-}
-</style>

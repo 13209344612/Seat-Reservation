@@ -1,81 +1,79 @@
 <template>
-  <div class="rooms-container">
-    <el-container>
-      <el-header>
-        <div class="header-content">
-          <h1>自习室列表</h1>
-          <div class="user-info">
-            <span>{{ userStore.userInfo?.username }}</span>
-            <el-button @click="$router.push('/')">首页</el-button>
-            <el-button @click="$router.push('/reservations')">我的预约</el-button>
-            <el-button v-if="userStore.userInfo?.role === 'admin'" @click="$router.push('/admin/rooms')">自习室管理</el-button>
-            <el-button type="danger" @click="handleLogout">退出</el-button>
+  <div class="page">
+    <div class="page-head">
+      <h1 class="page-title">自习室列表</h1>
+      <p class="page-desc">选择一间自习室，查看时段余量并预约座位</p>
+    </div>
+
+    <!-- 搜索栏 -->
+    <div class="toolbar soft-card">
+      <el-input
+        v-model="searchKeyword"
+        placeholder="搜索自习室名称"
+        clearable
+        class="search-input"
+        @clear="loadRooms"
+        @keyup.enter="loadRooms"
+      >
+        <template #prefix>
+          <el-icon><Search /></el-icon>
+        </template>
+      </el-input>
+      <el-button type="primary" @click="loadRooms">搜索</el-button>
+    </div>
+
+    <!-- 房间卡片 -->
+    <el-row :gutter="20" v-loading="loading">
+      <el-col
+        v-for="room in roomList"
+        :key="room.id"
+        :xs="24" :sm="12" :md="8"
+      >
+        <div class="room-card soft-card" @click="viewDetail(room.id)">
+          <div class="room-cover">
+            <el-icon size="46"><Reading /></el-icon>
+          </div>
+          <div class="room-body">
+            <h3 class="room-name">{{ room.name }}</h3>
+            <div class="room-meta">
+              <el-icon><Clock /></el-icon>
+              <span>{{ (room.timeSlots || []).length }} 个开放时段</span>
+            </div>
+            <div class="slot-tags">
+              <el-tag
+                v-for="slot in room.timeSlots"
+                :key="slot.id"
+                size="small"
+                effect="plain"
+                round
+                class="slot-tag"
+              >
+                {{ slot.startTime?.substring(0, 5) }} - {{ slot.endTime?.substring(0, 5) }}
+              </el-tag>
+            </div>
+            <div class="room-foot">
+              <el-tag type="primary" effect="light" round>
+                容量 {{ room.totalCapacity }} 人 / 时段
+              </el-tag>
+              <span class="room-link">
+                查看详情<el-icon><ArrowRight /></el-icon>
+              </span>
+            </div>
           </div>
         </div>
-      </el-header>
+      </el-col>
+    </el-row>
 
-      <el-main>
-        <div class="search-bar">
-          <el-input
-            v-model="searchKeyword"
-            placeholder="搜索自习室名称"
-            clearable
-            style="width: 400px"
-            @clear="loadRooms"
-            @keyup.enter="loadRooms"
-          >
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-            <template #append>
-              <el-button @click="loadRooms">
-                <el-icon><Search /></el-icon>
-              </el-button>
-            </template>
-          </el-input>
-        </div>
-
-        <el-row :gutter="20" v-loading="loading">
-          <el-col 
-            :span="8" 
-            v-for="room in roomList" 
-            :key="room.id"
-          >
-            <el-card class="room-card" shadow="hover" @click="viewDetail(room.id)">
-              <div class="room-image">
-                <el-icon size="60" color="#409eff"><Reading /></el-icon>
-              </div>
-              <h3>{{ room.name }}</h3>
-              <div class="room-info">
-                <el-tag type="success">容量: {{ room.totalCapacity }}</el-tag>
-                <el-tag type="warning">剩余: {{ room.availableCapacity }}</el-tag>
-              </div>
-              <el-button 
-                type="primary" 
-                style="width: 100%; margin-top: 10px"
-                :disabled="room.availableCapacity === 0"
-              >
-                {{ room.availableCapacity > 0 ? '立即预约' : '已满' }}
-              </el-button>
-            </el-card>
-          </el-col>
-        </el-row>
-
-        <el-empty v-if="!loading && roomList.length === 0" description="暂无自习室" />
-      </el-main>
-    </el-container>
+    <el-empty v-if="!loading && roomList.length === 0" description="暂无自习室" />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { getRoomList } from '@/api/room'
-import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
-const userStore = useUserStore()
 
 const loading = ref(false)
 const roomList = ref([])
@@ -97,101 +95,91 @@ const viewDetail = (id) => {
   router.push(`/rooms/${id}`)
 }
 
-const handleLogout = () => {
-  userStore.logout()
-  router.push('/login')
-}
-
 onMounted(() => {
   loadRooms()
 })
 </script>
 
 <style scoped>
-.rooms-container {
-  height: 100vh;
-}
-
-.el-header {
-  background-color: #409eff;
-  color: white;
-  line-height: 60px;
-  padding: 0 20px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.header-content h1 {
-  margin: 0;
-  font-size: 24px;
-}
-
-.user-info {
+.toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.el-main {
-  background-color: #f5f7fa;
-  padding: 20px;
-}
-
-.search-bar {
+  gap: 12px;
+  padding: 16px;
   margin-bottom: 20px;
-  text-align: center;
+}
+
+.search-input {
+  max-width: 420px;
 }
 
 .room-card {
-  cursor: pointer;
-  transition: transform 0.3s;
+  overflow: hidden;
   margin-bottom: 20px;
-  text-align: center;
+  cursor: pointer;
+  padding: 0;
+  transition: transform .2s, box-shadow .2s;
 }
 
 .room-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-3px);
+  box-shadow: var(--app-shadow-hover);
 }
 
-.room-image {
+.room-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 4px;
-  margin-bottom: 15px;
+  background: var(--app-primary-soft);
+  color: var(--el-color-primary);
 }
 
-.room-card h3 {
-  margin: 0 0 10px;
-  color: #333;
-  font-size: 18px;
+.room-body {
+  padding: 16px 18px 18px;
 }
 
-.location {
-  color: #666;
-  margin: 10px 0;
+.room-name {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--app-text-title);
+}
+
+.room-meta {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 5px;
+  font-size: 13px;
+  color: var(--app-text-muted);
+  margin-bottom: 10px;
 }
 
-.room-info {
+.slot-tags {
   display: flex;
-  gap: 10px;
-  justify-content: center;
-  margin: 10px 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 48px;
+  margin-bottom: 14px;
 }
 
-.time {
-  color: #999;
-  font-size: 14px;
-  margin: 10px 0;
+.slot-tag {
+  margin: 0;
+}
+
+.room-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.room-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 13px;
+  color: var(--el-color-primary);
+  white-space: nowrap;
 }
 </style>

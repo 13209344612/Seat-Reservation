@@ -10,7 +10,8 @@ import java.util.List;
 /**
  * 自习室响应 DTO — 返回给前端的自习室详细信息
  *
- * 包含自习室的基本信息、容量信息和时段列表。
+ * 包含自习室的基本信息、总容量和时段列表。
+ * 座位余量按「日期+时段」维度通过 availability 接口单独查询，故此处不含可用容量字段。
  */
 @Data
 @NoArgsConstructor
@@ -22,8 +23,6 @@ public class RoomResponse {
     private String name;
     /** 总容量 */
     private Integer totalCapacity;
-    /** 当前可用容量 */
-    private Integer availableCapacity;
     /** 创建时间 */
     private LocalDateTime createTime;
     /** 时段列表 */

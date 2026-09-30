@@ -1,20 +1,27 @@
-# 使用 Eclipse Temurin (AdoptOpenJDK) 17 作为基础镜像
+# ---- 构建阶段：Maven 在容器内打包，服务器无需安装 JDK/Maven ----
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /build
+
+# 先拷贝 pom.xml 预下载依赖（best-effort，利用层缓存；失败不阻断构建）
+COPY pom.xml .
+RUN mvn -B dependency:go-offline || true
+
+# 拷贝源码并打包（跳过测试）
+COPY src ./src
+RUN mvn -B clean package -DskipTests
+
+# ---- 运行阶段：仅 JRE，镜像更小 ----
 FROM eclipse-temurin:17-jre-alpine
 
-# 设置维护者信息
 LABEL maintainer="SeatReservation Team"
-
-# 设置工作目录
 WORKDIR /app
 
-# 复制 Maven 构建的 JAR 文件到容器中
-COPY target/*.jar app.jar
+# 从构建阶段拷贝打好的 JAR
+COPY --from=build /build/target/*.jar app.jar
 
-# 暴露应用端口
 EXPOSE 8080
 
-# JVM 参数优化（可根据实际情况调整）
+# JVM 参数优化（可根据服务器内存调整）
 ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -Dspring.profiles.active=docker"
 
-# 启动应用
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]

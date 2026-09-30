@@ -55,20 +55,27 @@ frontend/
 │   ├── api/              # API 接口
 │   │   ├── auth.js
 │   │   ├── room.js
-│   │   └── reservation.js
+│   │   ├── reservation.js
+│   │   └── ai.js
 │   ├── router/           # 路由配置
 │   │   └── index.js
 │   ├── stores/           # 状态管理
 │   │   └── user.js
 │   ├── utils/            # 工具函数
 │   │   └── request.js
+│   ├── layouts/          # 共享布局（顶部导航）
+│   │   └── MainLayout.vue
+│   ├── styles/           # 全局设计令牌与公共样式
+│   │   └── index.css
 │   ├── views/            # 页面组件
 │   │   ├── Login.vue
 │   │   ├── Register.vue
 │   │   ├── Home.vue
 │   │   ├── Rooms.vue
 │   │   ├── RoomDetail.vue
-│   │   └── Reservations.vue
+│   │   ├── Reservations.vue
+│   │   ├── AdminRooms.vue
+│   │   └── Assistant.vue
 │   ├── App.vue           # 根组件
 │   └── main.js           # 入口文件
 ├── index.html
@@ -94,6 +101,8 @@ frontend/
 
 ## 注意事项
 
-- 需要 dayjs 库来处理日期，请运行：`npm install dayjs`
+- 依赖（含 dayjs）已在 `package.json` 中声明，`npm install` 一次即可，无需单独安装
 - 确保后端 API 正常运行
 - Token 存储在 localStorage 中
+- Windows 下若提示找不到 npm：先执行 `$env:Path = 'C:\Program Files\nodejs;' + $env:Path`
+- 完整启动流程（中间件/后端/前端、端口与账号、常见问题）见根目录 [README.md](../README.md#快速开始)

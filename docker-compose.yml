@@ -93,12 +93,28 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      # 阿里通义千问 DashScope API Key（从宿主机环境变量透传）
+      AI_DASHSCOPE_API_KEY: ${AI_DASHSCOPE_API_KEY:-}
       # 时区设置
       TZ: Asia/Shanghai
     networks:
       - seat-network
     volumes:
       - app_logs:/app/logs
+
+  # Nginx：托管前端静态资源 + 反向代理 /api 到后端（对外唯一入口，端口 80）
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: seat-reservation-web
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    networks:
+      - seat-network
 
 # 数据卷定义
 volumes:

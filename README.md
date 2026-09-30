@@ -203,91 +203,104 @@ graph TB
 
 ## 快速开始
 
-### 方式一：Docker Compose（推荐）
+### 环境要求
 
-```
+| 依赖 | 版本 | 说明 |
+|------|------|------|
+| JDK | 17+（本项目在 JDK 23 开发验证） | 后端运行 |
+| Maven | 3.8+ | 后端构建 |
+| Node.js | 18+ | 前端构建（Vite 5） |
+| Docker / Docker Compose | 任意近期版本 | 提供 MySQL / Redis / RabbitMQ |
+
+### 方式一：Docker Compose 一键启动（中间件 + 后端）
+
+```bash
+# AI 助手需要 DashScope Key；不设则其余功能正常、仅 AI 助手不可用
+export AI_DASHSCOPE_API_KEY=sk-xxxx        # PowerShell: $env:AI_DASHSCOPE_API_KEY='sk-xxxx'
 docker compose up -d
 ```
 
-自动启动 MySQL、Redis、RabbitMQ、应用，无需手动装环境。
+- 首次启动自动建表并写入种子数据（`sql/init.sql` 挂载进 MySQL 初始化目录）
+- 共 4 个容器：MySQL / Redis / RabbitMQ / 后端应用（后端访问 http://localhost:8080）
+- 前端仍需按方式二的第 3 步本地启动，或将 `frontend/dist` 构建产物部署到静态服务器
 
-### 方式二：本地运行
+只启动中间件（后端在 IDE 里本地跑）：
 
-**环境**
-
-- JDK 17
-- Maven 3.8+
-- MySQL 8.0+
-- Redis
-- RabbitMQ（可选，未装时跳过短信通知）
-
-**数据库**
-
-执行 `sql/init.sql` 或手动建表：
-
-```
-CREATE DATABASE seat_reservation DEFAULT CHARSET utf8mb4;
-
-CREATE TABLE user (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(32) NOT NULL UNIQUE,
-    password VARCHAR(128) NOT NULL,
-    phone VARCHAR(16) DEFAULT '',
-    role VARCHAR(16) NOT NULL DEFAULT 'student',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE study_room (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(64) NOT NULL,
-    total_capacity INT NOT NULL,
-    available_capacity INT NOT NULL,
-    version INT DEFAULT 0,
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE time_slot (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    room_id BIGINT NOT NULL,
-    start_time TIME NOT NULL,
-    end_time TIME NOT NULL,
-    FOREIGN KEY (room_id) REFERENCES study_room(id)
-);
-
-CREATE TABLE reservation (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    room_id BIGINT NOT NULL,
-    time_slot_id BIGINT NOT NULL,
-    reservation_date DATE NOT NULL,
-    status VARCHAR(16) DEFAULT 'booked',
-    sign_time DATETIME,
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES user(id),
-    FOREIGN KEY (room_id) REFERENCES study_room(id),
-    FOREIGN KEY (time_slot_id) REFERENCES time_slot(id),
-    UNIQUE KEY uk_user_room_slot_date (user_id, room_id, time_slot_id, reservation_date)
-);
-
--- 测试数据
-INSERT INTO study_room (id, name, total_capacity, available_capacity) VALUES
-(1, '自习室A（1号馆）', 50, 50),
-(2, '自习室B（2号馆）', 30, 30),
-(3, '自习室C（图书馆）', 80, 80);
-
-INSERT INTO time_slot (room_id, start_time, end_time) VALUES
-(1, '08:00', '12:00'), (1, '13:00', '17:00'), (1, '18:00', '22:00'),
-(2, '08:00', '12:00'), (2, '13:00', '17:00'), (2, '18:00', '22:00'),
-(3, '08:00', '12:00'), (3, '13:00', '17:00'), (3, '18:00', '22:00');
+```bash
+docker compose up -d mysql redis rabbitmq
 ```
 
-**启动**
+### 方式二：本地开发模式（日常开发推荐）
 
+**第 1 步：启动中间件**
+
+```bash
+docker compose up -d mysql redis rabbitmq
 ```
+
+| 服务 | 宿主机地址 | 账号 |
+|------|----------|------|
+| MySQL | `localhost:3307`（容器内 3306 映射） | root / 622824，库名 `seat_reservation` |
+| Redis | `localhost:6379` | 无密码 |
+| RabbitMQ | `localhost:5672`，管理台 http://localhost:15672 | guest / guest |
+
+> MySQL 首次启动会自动执行 `sql/init.sql` 建表并写入种子数据。
+> 若数据库**早已初始化过**，需按顺序执行增量脚本：`sql/migration_v2.sql`、`sql/migration_ai_history.sql`。
+
+**第 2 步：启动后端（端口 8080）**
+
+IntelliJ IDEA：直接运行 `SeatReservationApplication`；如需 AI 助手，在 Run Configuration 的 Environment variables 中加 `AI_DASHSCOPE_API_KEY=sk-xxxx`（不设则仅 AI 助手不可用，其余功能正常）。
+
+或命令行：
+
+```bash
+# PowerShell
+$env:AI_DASHSCOPE_API_KEY='sk-xxxx'
 mvn spring-boot:run
 ```
 
-**测试**
+**第 3 步：启动前端（端口 3000）**
+
+> ⚠️ 前端项目位于 `frontend` 子目录，所有 `npm` 命令都必须先 `cd frontend` 再执行；在项目根目录直接运行会报 `npm run build` 找不到脚本或 npm 未识别。
+
+**Windows（PowerShell）若提示 `无法将"npm"项识别为...`**，说明 Node.js 未加入 PATH。当前会话临时修复（Node 默认安装路径）：
+
+```powershell
+$env:Path = 'C:\Program Files\nodejs;' + $env:Path
+npm -v          # 验证，能输出版本号即可
+```
+
+> 若 Node 装在别处，用 `where.exe node` 或搜索 `node.exe` 确认目录后替换上面的路径；要永久生效，把该目录加入系统环境变量 PATH，重开终端即可。
+
+启动开发服务器：
+
+```powershell
+cd frontend
+npm install        # 仅首次需要
+npm run dev
+```
+
+访问 http://localhost:3000 ，Vite 已配置代理，`/api` 请求自动转发到 `http://localhost:8080`。
+
+**生产构建**
+
+```powershell
+cd frontend
+# 产物在 frontend/dist
+```
+
+> 完整一行式（含临时 PATH 修复，PowerShell）：`$env:Path='C:\Program Files\nodejs;'+$env:Path; cd frontend; npm run build`
+
+将 `dist` 部署到 Nginx 等静态服务器即可。注意：**若你看的是构建产物页面，前端代码改动后必须重新 `npm run build` 并硬刷新浏览器（Ctrl+Shift+R）才会生效**；`localhost:3000` 的 dev server 则支持热更新。
+
+### 启动顺序与验证
+
+1. 中间件：`docker compose up -d mysql redis rabbitmq` → `docker ps` 三个容器均为 healthy
+2. 后端：启动日志出现 `Tomcat started on port 8080`
+3. 前端：终端出现 `Local: http://localhost:3000/`
+4. 浏览器打开 http://localhost:3000 ，注册/登录后使用；AI 助手入口为顶部导航「AI 助手」
+
+### 接口冒烟测试
 
 ```
 # 注册
@@ -303,6 +316,16 @@ curl -X POST http://localhost:8080/api/auth/login \
 # 提权为管理员
 # UPDATE user SET role = 'admin' WHERE username = 'test';
 ```
+
+### 常见问题
+
+| 现象 | 原因与处理 |
+|------|----------|
+| `无法将"npm"项识别为...` | Node.js 未加入 PATH：临时执行 `$env:Path='C:\Program Files\nodejs;'+$env:Path`，或永久加入系统 PATH；命令还需先 `cd frontend` |
+| 前端改动页面不生效 | 看的是旧构建产物或缓存页：改用 `localhost:3000` dev server，或重新 `npm run build` 后 Ctrl+Shift+R 硬刷新 |
+| AI 助手报错/不可用 | 未设置 `AI_DASHSCOPE_API_KEY` 环境变量或 Key 无效 |
+| 后端报数据库连接失败 | 中间件未启动，或端口不符（本地配置连接 `3307`） |
+| 端口被占用 | PowerShell：`Get-NetTCPConnection -State Listen \| Where-Object LocalPort -in 3000,8080` 定位占用进程 |
 
 ## API 文档
 
