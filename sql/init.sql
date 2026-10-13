@@ -85,34 +85,11 @@ CREATE TABLE IF NOT EXISTS `reservation` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='预约记录表';
 
 -- ========================================
--- 5. AI 会话表
---    持久化 AI 助手的多轮会话，供前端历史会话列表/回溯使用。
---    conversation_id 与 Spring AI ChatMemory 及前端保持一致。
+-- 5. AI 会话历史
+--    AI 助手已迁移到独立的 Python Agent 服务（ai-agent/），
+--    会话记忆与历史改由 LangGraph SQLite checkpointer 承载，不再使用 MySQL 表。
+--    既有数据库可执行 migration_drop_ai_history.sql 清理旧的 ai_conversation/ai_message 表。
 -- ========================================
-CREATE TABLE IF NOT EXISTS `ai_conversation` (
-    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
-    `conversation_id` VARCHAR(64) NOT NULL COMMENT '会话ID（与ChatMemory/前端一致）',
-    `user_id` BIGINT NOT NULL COMMENT '所属用户ID',
-    `title` VARCHAR(128) NOT NULL DEFAULT '新对话' COMMENT '会话标题（取首条提问）',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后活跃时间',
-    UNIQUE KEY uk_conversation_id (`conversation_id`),
-    INDEX idx_user_update (`user_id`, `update_time`),
-    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 会话表';
-
--- ========================================
--- 6. AI 消息表
--- ========================================
-CREATE TABLE IF NOT EXISTS `ai_message` (
-    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
-    `conversation_id` VARCHAR(64) NOT NULL COMMENT '会话ID',
-    `role` VARCHAR(16) NOT NULL COMMENT '角色：user/assistant',
-    `content` TEXT NOT NULL COMMENT '消息内容',
-    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    INDEX idx_conversation (`conversation_id`, `id`),
-    FOREIGN KEY (`conversation_id`) REFERENCES `ai_conversation`(`conversation_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 消息表';
 
 -- ========================================
 -- 插入测试数据

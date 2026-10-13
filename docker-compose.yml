@@ -93,14 +93,45 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
-      # 阿里通义千问 DashScope API Key（从宿主机环境变量透传）
-      AI_DASHSCOPE_API_KEY: ${AI_DASHSCOPE_API_KEY:-}
+      # 阿里通义千问 DashScope API Key 已迁移至 Python Agent 服务，Java 不再需要
+      # 内部接口（/internal/**）服务间鉴权 token，需与 Python Agent 的 INTERNAL_API_TOKEN 一致
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
       # 时区设置
       TZ: Asia/Shanghai
     networks:
       - seat-network
     volumes:
       - app_logs:/app/logs
+
+  # Python AI Agent 服务（FastAPI + LangChain/LangGraph + DashScope）
+  # 负责 AI 对话编排/工具调用/RAG/记忆与历史，通过 /internal/** 调用 Java 业务底座
+  ai-agent:
+    build:
+      context: ./ai-agent
+      dockerfile: Dockerfile
+    container_name: seat-reservation-ai-agent
+    restart: always
+    expose:
+      - "8000"          # 仅内网暴露，对外统一经 nginx 反代
+    depends_on:
+      - app
+    environment:
+      # 通义千问（从宿主机环境变量透传）
+      DASHSCOPE_API_KEY: ${AI_DASHSCOPE_API_KEY:-}
+      DASHSCOPE_BASE_URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+      CHAT_MODEL: qwen-plus
+      EMBEDDING_MODEL: text-embedding-v3
+      # 必须与 Java application.yml 的 jwt.secret 完全一致，用于校验用户 token
+      JWT_SECRET: U2VhdFJlc2VydmF0aW9uU3lzdGVtQnlMRU9IRVJPMjAyNQ==
+      # 必须与 Java internal.api.token 一致
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+      JAVA_INTERNAL_BASE_URL: http://app:8080
+      DB_PATH: db/reservation_agent.db
+      TZ: Asia/Shanghai
+    networks:
+      - seat-network
+    volumes:
+      - ai_agent_db:/app/db   # 会话记忆 SQLite 持久化
 
   # Nginx：托管前端静态资源 + 反向代理 /api 到后端（对外唯一入口，端口 80）
   web:
@@ -113,6 +144,7 @@ services:
       - "80:80"
     depends_on:
       - app
+      - ai-agent
     networks:
       - seat-network
 
@@ -125,6 +157,8 @@ volumes:
   rabbitmq_data:
     driver: local
   app_logs:
+    driver: local
+  ai_agent_db:
     driver: local
 
 # 网络定义

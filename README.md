@@ -1,10 +1,10 @@
 # 座位预约系统 (Seat Reservation System)
 
-🎯 **校园自习室座位预约系统** —— 基于 Spring Boot 3.5 + Vue 3 的全栈项目
+🎯 **校园自习室座位预约系统** —— 基于「Python Agent 主线 + Java 业务底座」+ Vue 3 的全栈项目
 
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.14-brightgreen.svg)
 ![MyBatis-Plus](https://img.shields.io/badge/MyBatis--Plus-3.5.12-blue.svg)
-![Spring AI](https://img.shields.io/badge/Spring%20AI-DashScope-purple.svg)
+![Python Agent](https://img.shields.io/badge/Python%20Agent-LangChain%2FLangGraph-3776AB.svg)
 ![Docker](https://img.shields.io/badge/Docker-Compose-orange.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
@@ -24,7 +24,7 @@
 
 ## 技术栈
 
-### 后端
+### 后端（Java 业务底座）
 - **核心框架**: Spring Boot 3.5.14
 - **ORM**: MyBatis-Plus 3.5.12
 - **数据库**: MySQL 8.0
@@ -32,8 +32,17 @@
 - **消息队列**: RabbitMQ 3
 - **分布式锁**: Redisson 3.27.0
 - **安全认证**: Spring Security + JWT (jjwt 0.12.6)
-- **AI 能力**: Spring AI 1.1 + Spring AI Alibaba（DashScope 通义千问）—— RAG 向量检索 + SSE 流式对话 + 工具调用
 - **工具库**: Lombok, Jackson JSR310, Reactor
+- **内部接口**: 新增 `/internal/**` 路径，由 `X-Internal-Token` 服务间鉴权，供 Python Agent 以显式 userId 调用业务底座
+
+### AI Agent（独立 Python 服务 `ai-agent/`）
+- **框架**: FastAPI + Uvicorn
+- **编排**: LangChain `create_agent` + LangGraph
+- **大模型**: 通义千问 `qwen-plus`（DashScope OpenAI 兼容接口）
+- **RAG**: `text-embedding-v3` + `InMemoryVectorStore`（启动加载 `ai-agent/knowledge/*.md`）
+- **记忆与历史**: LangGraph `SqliteSaver`（按 `thread_id` 持久化，等价原 MySQL ai 表）
+- **工具调用**: 5 个预约 `@tool` + 1 个知识库检索 `@tool`；userId 由服务端注入，模型不可见/不可填，杜绝越权
+- **依赖管理**: uv（pyproject.toml），Python 3.12+
 
 ### 前端
 - **框架**: Vue 3 Composition API
@@ -44,8 +53,8 @@
 - **构建工具**: Vite
 
 ### DevOps
-- **容器化**: Docker + Docker Compose（MySQL / Redis / RabbitMQ / 后端 / Nginx 五服务编排）
-- **网关 / 静态托管**: Nginx（托管前端 `dist` + 反向代理 `/api`，SSE 不缓冲）
+- **容器化**: Docker + Docker Compose（MySQL / Redis / RabbitMQ / Java 后端 / Python Agent / Nginx 六服务编排）
+- **网关 / 静态托管**: Nginx（托管前端 `dist` + 反向代理：`/api/ai/` → Python Agent `ai-agent:8000`，其余 `/api/` → Java `app:8080`，SSE 不缓冲）
 - **CI/CD**: GitHub Actions (可选)
 
 ---
@@ -61,11 +70,11 @@
 - ✅ 签到 / 取消预约（取消后可重新预约同一时段）
 - ✅ 查看我的预约记录
 
-### 🤖 AI 助手（Spring AI + 通义千问）
-- ✅ 自然语言问答预约规则、签到/取消流程（RAG 检索内置知识库）
+### 🤖 AI 助手（Python Agent + 通义千问）
+- ✅ 自然语言问答预约规则、签到/取消流程（RAG 检索 `ai-agent/knowledge/` 内置知识库）
 - ✅ SSE 流式对话，前端打字机效果
-- ✅ 多轮上下文记忆（ChatMemory）+ 历史会话持久化，可回溯 / 删除
-- ✅ 工具调用（Function Calling）：AI 可代当前用户查询余量等，userId 经 ToolContext 安全传递，杜绝越权
+- ✅ 多轮上下文记忆（LangGraph `SqliteSaver` 按 `thread_id` 持久化）+ 历史会话可回溯 / 删除，多用户天然隔离
+- ✅ 工具调用（Function Calling）：AI 可代当前用户查询余量、预约、取消预约等；userId 由服务端注入，模型不可见/不可填，杜绝越权
 
 ### 👨 💼 管理员端
 - ✅ 自习室 CRUD + 时段管理
@@ -78,7 +87,7 @@
 - ✅ 并发正确性：Redisson 分布式锁（room+date+slot 维度）+ 锁内 count 校验；生成列 `active_unique` 部分唯一索引防重复活跃预约
 - ✅ RabbitMQ 异步解耦，预约接口不受通知模块影响
 - ✅ 全局异常处理（参数校验 + 业务异常统一返回）
-- ✅ Docker Compose 一键部署（MySQL + Redis + RabbitMQ + 后端 + Nginx 五服务）
+- ✅ Docker Compose 一键部署（MySQL + Redis + RabbitMQ + Java 后端 + Python Agent + Nginx 六服务）
 
 ---
 
@@ -89,7 +98,8 @@
 ```
 graph TB
     Client[前端 Vue3 + Element Plus] -->|HTTP/HTTPS| LB[Nginx 反向代理]
-    LB -->|8080| API[Spring Boot 应用]
+    LB -->|/api/ai/| Agent[Python Agent<br/>FastAPI + LangChain]
+    LB -->|/api/| API[Java 业务底座<br/>Spring Boot]
     
     API -->|JDBC| MySQL[(MySQL 8.0<br/>用户/预约数据)]
     API -->|Redis Protocol| Redis[(Redis 7<br/>缓存/分布式锁)]
@@ -116,16 +126,14 @@ graph TB
     Reserve --> Derived
     Derived --> MySQL
     
-    subgraph "AI 助手"
-        AI[AiAssistantController]
-        RAG[RAG 知识库检索]
-        LLM[DashScope 通义千问]
+    subgraph "Python Agent 服务"
+        Agent -->|X-Internal-Token| API
+        Agent -->|@tool 调用| Tools[预约工具 / 知识库检索]
+        Agent -->|SqliteSaver| SQLite[(会话记忆<br/>thread_id 隔离)]
+        Agent -->|DashScope| LLM[通义千问]
     end
     
-    API --> AI
-    AI --> RAG
-    AI --> LLM
-    AI -->|SSE 流式| Client
+    Agent -->|SSE 流式| Client
 ```
 
 ### 技术架构图
@@ -133,35 +141,41 @@ graph TB
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     前端层 (Vue 3)                       │
-│   Login | Rooms | Reservations | RoomDetail             │
+│   Login | Rooms | Reservations | RoomDetail | Assistant  │
 └──────────────────────┬──────────────────────────────────┘
                        │ HTTP + JWT Token
 ┌──────────────────────▼──────────────────────────────────┐
 │                   网关层 (Nginx)                         │
-│         反向代理 + 负载均衡 + 静态资源                   │
+│         /api/ai/ → Python Agent :8000                    │
+│         /api/    → Java 后端 :8080                       │
+│         静态资源 + SSE 不缓冲                            │
 └──────────────────────┬──────────────────────────────────┘
                        │
-┌──────────────────────▼──────────────────────────────────┐
-│                 控制层 (Controller)                      │
-│   AuthController | StudyRoomController                  │
-│   ReservationController                                 │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────┐
-│                 业务层 (Service)                         │
-│   UserService | StudyRoomService                        │
-│   ReservationServiceImpl                                │
-│   ├─ Redisson 分布式锁                                  │
-│   ├─ 派生库存校验                                        │
-│   └─ RabbitMQ 异步通知                                   │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────┐
-│                 数据层 (Mapper)                          │
-│   MyBatis-Plus BaseMapper                               │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────────┐
+        ┌──────────────┴──────────────┐
+        │                             │
+┌───────▼────────┐             ┌──────▼──────────────────┐
+│ Python Agent   │             │ Java 业务底座           │
+│ (FastAPI)      │───内部接口──▶│ (Spring Boot)           │
+│                │  /internal/* │                         │
+│ ┌────────────┐ │  X-Token    │ ┌──────────────────────┐│
+│ │LangChain   │ │             │ │ AuthController       ││
+│ │create_agent│ │             │ │ StudyRoomController  ││
+│ │+ LangGraph │ │             │ │ ReservationController││
+│ └────────────┘ │             │ └──────────────────────┘│
+│ ┌────────────┐ │             │ ┌──────────────────────┐│
+│ │@tool 调用  │ │             │ │ ReservationService   ││
+│ │list_rooms  │ │             │ │ ├─ Redisson 锁       ││
+│ │query_avail │ │             │ │ ├─ 派生库存校验      ││
+│ │create/cancel│ │             │ │ └─ RabbitMQ 异步    ││
+│ │search_know │ │             │ └──────────────────────┘│
+│ └────────────┘ │             │                         │
+│ ┌────────────┐ │             │ ┌──────────────────────┐│
+│ │SqliteSaver │ │             │ │ MyBatis-Plus Mapper  ││
+│ │会话记忆    │ │             │ └──────────────────────┘│
+│ └────────────┘ │             │                         │
+└────────────────┘             └──────────┬──────────────┘
+                                          │
+┌─────────────────────────────────────────▼──────────────┐
 │              基础设施层 (Infrastructure)                 │
 │   MySQL | Redis | RabbitMQ                              │
 └─────────────────────────────────────────────────────────┘
@@ -221,8 +235,8 @@ graph TB
 | RabbitMQ 异步通知 | 预约成功扔消息到队列即返回，消费者异步模拟短信发送 |
 | Redis 缓存 | `CachingConfigurer` + `JavaTimeModule` 解决 LocalDateTime 序列化 |
 | 定时回收 | `@Scheduled` 每5分钟扫描超时预约 → 自动取消 |
-| Docker 部署 | `docker compose up -d --build` 一键启动 MySQL/Redis/RabbitMQ/后端/Nginx 五服务（前后端多阶段构建） |
-| AI 助手（RAG） | Spring AI + DashScope，向量检索内置知识库；SSE 流式对话；ChatMemory 多轮上下文 + 历史会话持久化 |
+| Docker 部署 | `docker compose up -d --build` 一键启动 MySQL/Redis/RabbitMQ/Java 后端/Python Agent/Nginx 六服务（前后端多阶段构建） |
+| AI 助手（Python Agent） | FastAPI + LangChain `create_agent` + LangGraph；DashScope 通义千问；RAG 向量检索内置知识库；SSE 流式对话；`SqliteSaver` 按 `thread_id` 多用户隔离；userId 服务端注入，模型不可见 |
 | 取消后可重约 | 生成列 `active_unique`（仅 booked/signed 生成键）+ 部分唯一索引，取消/过期置 NULL 即可重约 |
 
 ## 快速开始
@@ -231,8 +245,10 @@ graph TB
 
 | 依赖 | 版本 | 说明 |
 |------|------|------|
-| JDK | 17+（本项目在 JDK 23 开发验证） | 后端运行 |
-| Maven | 3.8+ | 后端构建 |
+| JDK | 17+（本项目在 JDK 23 开发验证） | Java 业务底座运行 |
+| Maven | 3.8+ | Java 后端构建 |
+| Python | 3.12+ | AI Agent 服务运行 |
+| uv | 最新 | Python Agent 依赖管理（`pip install uv` 或 `curl -LsSf https://astral.sh/uv/install.sh | sh`） |
 | Node.js | 18+ | 前端构建（Vite 5） |
 | Docker / Docker Compose | 任意近期版本 | 提供 MySQL / Redis / RabbitMQ |
 
@@ -245,9 +261,9 @@ docker compose up -d --build
 ```
 
 - 首次启动自动建表并写入种子数据（`sql/init.sql` 挂载进 MySQL 初始化目录）
-- 共 **5 个容器**：MySQL / Redis / RabbitMQ / 后端应用 / Nginx
-- 前后端均为**多阶段构建镜像**：后端在容器内用 Maven 打包、前端在容器内用 Node 构建 `dist` 并交由 Nginx 托管，**宿主机无需安装 JDK/Maven/Node**
-- **对外唯一入口是 Nginx（80 端口）**：浏览器访问 `http://服务器IP`（或 `http://localhost`），Nginx 托管前端页面并把 `/api` 反向代理到后端 `app:8080`（已配置 SSE 不缓冲，AI 流式正常）
+- 共 **6 个容器**：MySQL / Redis / RabbitMQ / Java 后端 / Python Agent / Nginx
+- 前后端均为**多阶段构建镜像**：Java 后端在容器内用 Maven 打包；Python Agent 用 `uv sync` 安装依赖；前端在容器内用 Node 构建 `dist` 并交由 Nginx 托管，**宿主机无需安装 JDK/Maven/uv/Node**
+- **对外唯一入口是 Nginx（80 端口）**：浏览器访问 `http://服务器IP`（或 `http://localhost`），Nginx 托管前端页面，`/api/ai/` 反向代理到 `ai-agent:8000`，其余 `/api/` 到 `app:8080`（已配置 SSE 不缓冲，AI 流式正常）
 
 > 云服务器部署时，记得在厂商控制台的安全组放行入站 **TCP 80**。
 
@@ -274,19 +290,30 @@ docker compose up -d mysql redis rabbitmq
 > MySQL 首次启动会自动执行 `sql/init.sql` 建表并写入种子数据。
 > 若数据库**早已初始化过**，需按顺序执行增量脚本：`sql/migration_v2.sql`、`sql/migration_ai_history.sql`。
 
-**第 2 步：启动后端（端口 8080）**
+**第 2 步：启动 Java 业务底座（端口 8080）**
 
-IntelliJ IDEA：直接运行 `SeatReservationApplication`；如需 AI 助手，在 Run Configuration 的 Environment variables 中加 `AI_DASHSCOPE_API_KEY=sk-xxxx`（不设则仅 AI 助手不可用，其余功能正常）。
+IntelliJ IDEA：直接运行 `SeatReservationApplication`；无需额外环境变量（`internal.api.token` 与 `jwt.secret` 已内置默认值，与 Python Agent 的 `.env` 对齐）。
 
 或命令行：
 
 ```bash
-# PowerShell
-$env:AI_DASHSCOPE_API_KEY='sk-xxxx'
 mvn spring-boot:run
 ```
 
-**第 3 步：启动前端（端口 3000）**
+**第 3 步：启动 Python Agent（端口 8000）**
+
+```powershell
+cd ai-agent
+# 首次需复制 .env.example 为 .env 并填写 DASHSCOPE_API_KEY
+copy .env.example .env
+# 编辑 .env：填写 DASHSCOPE_API_KEY（必填），其余默认即可
+uv sync          # 安装依赖
+uv run python -m app.main
+```
+
+看到日志 `AI Agent 就绪，监听端口 8000` 即成功。
+
+**第 4 步：启动前端（端口 3000）**
 
 > ⚠️ 前端项目位于 `frontend` 子目录，所有 `npm` 命令都必须先 `cd frontend` 再执行；在项目根目录直接运行会报 `npm run build` 找不到脚本或 npm 未识别。
 
@@ -323,9 +350,10 @@ cd frontend
 ### 启动顺序与验证
 
 1. 中间件：`docker compose up -d mysql redis rabbitmq` → `docker ps` 三个容器均为 healthy
-2. 后端：启动日志出现 `Tomcat started on port 8080`
-3. 前端：终端出现 `Local: http://localhost:3000/`
-4. 浏览器打开 http://localhost:3000 ，注册/登录后使用；AI 助手入口为顶部导航「AI 助手」
+2. Java 业务底座：启动日志出现 `Tomcat started on port 8080`
+3. Python Agent：启动日志出现 `AI Agent 就绪，监听端口 8000`
+4. 前端：终端出现 `Local: http://localhost:3000/`
+5. 浏览器打开 http://localhost:3000 ，注册/登录后使用；AI 助手入口为顶部导航「AI 助手」
 
 ### 接口冒烟测试
 
@@ -350,9 +378,9 @@ curl -X POST http://localhost:8080/api/auth/login \
 |------|----------|
 | `无法将"npm"项识别为...` | Node.js 未加入 PATH：临时执行 `$env:Path='C:\Program Files\nodejs;'+$env:Path`，或永久加入系统 PATH；命令还需先 `cd frontend` |
 | 前端改动页面不生效 | 看的是旧构建产物或缓存页：改用 `localhost:3000` dev server，或重新 `npm run build` 后 Ctrl+Shift+R 硬刷新 |
-| AI 助手报错/不可用 | 未设置 `AI_DASHSCOPE_API_KEY` 环境变量或 Key 无效 |
+| AI 助手报错/不可用 | Python Agent 未启动（端口 8000）；或 `.env` 未配置 `DASHSCOPE_API_KEY`；或 Java 与 Python 的 `INTERNAL_API_TOKEN` / `JWT_SECRET` 不一致 |
 | 后端报数据库连接失败 | 中间件未启动，或端口不符（本地配置连接 `3307`） |
-| 端口被占用 | PowerShell：`Get-NetTCPConnection -State Listen \| Where-Object LocalPort -in 3000,8080` 定位占用进程 |
+| 端口被占用 | PowerShell：`Get-NetTCPConnection -State Listen \| Where-Object LocalPort -in 3000,8080,8000` 定位占用进程 |
 
 ## API 文档
 
@@ -497,15 +525,29 @@ curl -X POST http://localhost:8080/api/auth/login \
 ## 项目结构
 
 ```
-├── Dockerfile                    后端镜像（多阶段：Maven 构建 → JRE 运行）
-├── docker-compose.yml            容器编排（MySQL/Redis/RabbitMQ/app/web 五服务）
+├── Dockerfile                    Java 后端镜像（多阶段：Maven 构建 → JRE 运行）
+├── docker-compose.yml            容器编排（MySQL/Redis/RabbitMQ/app/ai-agent/web 六服务）
 ├── sql/
 │   ├── init.sql                  数据库初始化脚本（首次自动执行）
 │   ├── migration_v2.sql          存量库迁移：库存改派生计数 + active_unique 生成列
-│   └── migration_ai_history.sql  存量库迁移：AI 会话/消息表
+│   └── migration_drop_ai_history.sql  存量库迁移：删除原 ai_conversation/ai_message 表
+├── ai-agent/                     Python Agent 服务（FastAPI + LangChain）
+│   ├── Dockerfile                Agent 镜像（uv sync → 运行）
+│   ├── pyproject.toml            依赖定义（uv 管理）
+│   ├── .env.example              环境变量模板（复制为 .env 填写）
+│   ├── knowledge/                RAG 知识库（预约规则.md、签到与取消.md）
+│   ├── db/                       会话记忆 SQLite（SqliteSaver）
+│   └── app/
+│       ├── main.py               FastAPI 入口 + lifespan
+│       ├── api/ai.py             路由（/api/ai/**，与前端契约一致）
+│       ├── agents/reservation_agent.py  LangChain create_agent + LangGraph
+│       ├── tools/                @tool 定义（预约工具 + Java 客户端）
+│       ├── rag/knowledge.py      RAG 向量检索
+│       ├── security/jwt_auth.py  JWT 校验（复用 Java 同一密钥）
+│       └── core/config.py        配置加载
 ├── frontend/                     前端（Vue 3 + Vite）
 │   ├── Dockerfile                前端镜像（多阶段：Node 构建 dist → Nginx 托管）
-│   ├── nginx.conf                Nginx：SPA 路由回退 + /api 反代 + SSE 不缓冲
+│   ├── nginx.conf                Nginx：SPA 路由回退 + /api/ai/ 反代 Agent + /api/ 反代 Java + SSE 不缓冲
 │   └── src/
 │       ├── api/                  auth、room、reservation、ai 接口封装
 │       ├── layouts/              MainLayout 主布局
@@ -514,21 +556,17 @@ curl -X POST http://localhost:8080/api/auth/login \
 │       ├── stores/               Pinia（user）
 │       └── router/               路由
 └── src/main/java/com/campus/seatreservation/
-    ├── ai/                       AI 助手模块
-    │   ├── config/               ChatClientConfig、VectorStoreConfig
-    │   ├── controller/           AiAssistantController、AiConversationController
-    │   ├── service/              AiConversationService、KnowledgeBaseService
-    │   └── tool/                 ReservationTools（Function Calling）
     ├── common/                   Result、GlobalExceptionHandler
     ├── config/                   SecurityConfig、RedisConfig、MybatisPlusConfig、
-    │                             RabbitMQConfig、RedissonConfig
+    │                             RabbitMQConfig、RedissonConfig、InternalApiSecurityConfig
     ├── controller/               AuthController、StudyRoomController、
     │                             ReservationController
+    ├── controller/internal/      InternalRoomController、InternalReservationController
+    │                             （供 Python Agent 调用，X-Internal-Token 鉴权）
     ├── dto/                      请求/响应对象、SlotAvailability、SmsMessage
-    ├── entity/                   User、StudyRoom、TimeSlot、Reservation、
-    │                             AiConversation、AiMessage
-    ├── mapper/                   MyBatis-Plus BaseMapper（含 AI 会话/消息）
-    ├── security/                 JwtAuthenticationFilter
+    ├── entity/                   User、StudyRoom、TimeSlot、Reservation
+    ├── mapper/                   MyBatis-Plus BaseMapper
+    ├── security/                 JwtAuthenticationFilter、InternalTokenFilter
     ├── service/                  业务接口 + impl（含 SmsConsumer）
     ├── task/                     ReservationTimeoutTask
     └── util/                     JwtUtils
@@ -544,8 +582,6 @@ erDiagram
     STUDY_ROOM ||--o{ TIME_SLOT : "包含"
     STUDY_ROOM ||--o{ RESERVATION : "被预约"
     TIME_SLOT ||--o{ RESERVATION : "时段"
-    USER ||--o{ AI_CONVERSATION : "拥有"
-    AI_CONVERSATION ||--o{ AI_MESSAGE : "包含"
     
     USER {
         bigint id PK
@@ -580,22 +616,9 @@ erDiagram
         varchar active_unique
         datetime sign_time
     }
-    
-    AI_CONVERSATION {
-        bigint id PK
-        varchar conversation_id UK
-        bigint user_id FK
-        varchar title
-        datetime update_time
-    }
-    
-    AI_MESSAGE {
-        bigint id PK
-        varchar conversation_id FK
-        varchar role
-        text content
-    }
 ```
+
+> AI 会话记忆已迁移至 Python Agent 侧的 SQLite（`ai-agent/db/reservation_agent.db`），按 `thread_id` 多用户隔离，不再占用 MySQL。
 
 ### 表结构说明
 
@@ -605,8 +628,6 @@ erDiagram
 | `study_room` | 自习室表 | name, total_capacity（**已移除 available_capacity/version，余量改为派生统计**） |
 | `time_slot` | 时段表 | room_id, start_time, end_time |
 | `reservation` | 预约表 | user_id, room_id, time_slot_id, status(booked/signed/cancelled/expired), **生成列 active_unique + 部分唯一索引 uk_active_reservation** |
-| `ai_conversation` | AI 会话表 | conversation_id(唯一), user_id, title, update_time |
-| `ai_message` | AI 消息表 | conversation_id, role(user/assistant), content |
 
 ---
 
