@@ -11,7 +11,9 @@ import glob
 import os
 import re
 
+import httpx
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_core.tools import tool
 from langchain_core.vectorstores import InMemoryVectorStore
 
@@ -24,14 +26,48 @@ _EMBED_BATCH = 10
 _vector_store: InMemoryVectorStore | None = None
 
 
-def _embeddings():
-    """构建 DashScope（OpenAI 兼容）向量模型客户端。"""
-    from langchain_openai import OpenAIEmbeddings
+class DashScopeEmbeddings(Embeddings):
+    """DashScope 向量接口自定义实现。
 
-    return OpenAIEmbeddings(
+    langchain_openai.OpenAIEmbeddings 在较新版本中可能使用 OpenAI 新版
+    input.contents 格式发送请求，DashScope 兼容接口不支持该格式，
+    因此直接使用 httpx 调用以确保 input 为标准 str / list[str]。
+    """
+
+    def __init__(self, model: str, api_key: str, base_url: str):
+        self.model = model
+        self.api_key = api_key
+        # 确保 base_url 以 /embeddings 结尾用于拼接
+        self.base_url = base_url.rstrip("/")
+
+    def _call_api(self, texts: list[str]) -> list[list[float]]:
+        url = f"{self.base_url}/embeddings"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        # DashScope 兼容接口要求 input 为 str 或 list[str]
+        payload = {"input": texts, "model": self.model}
+        resp = httpx.post(url, json=payload, headers=headers, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        # 按 index 排序后提取 embedding 向量
+        items = sorted(data["data"], key=lambda x: x["index"])
+        return [item["embedding"] for item in items]
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self._call_api(texts)
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._call_api([text])[0]
+
+
+def _embeddings() -> Embeddings:
+    """构建 DashScope 向量模型客户端。"""
+    return DashScopeEmbeddings(
         model=settings.EMBEDDING_MODEL,
-        openai_api_key=settings.DASHSCOPE_API_KEY,
-        openai_api_base=settings.DASHSCOPE_BASE_URL,
+        api_key=settings.DASHSCOPE_API_KEY,
+        base_url=settings.DASHSCOPE_BASE_URL,
     )
 
 
