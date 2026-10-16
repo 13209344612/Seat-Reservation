@@ -1,5 +1,5 @@
 <template>
-  <div class="assistant">
+  <div class="assistant-page">
     <div class="chat-shell">
       <!-- 历史会话侧边栏 -->
       <aside class="sidebar" :class="{ open: sidebarVisible }">
@@ -441,7 +441,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.assistant {
+.assistant-page {
   height: calc(100vh - 60px);
   display: flex;
   justify-content: center;
